@@ -23,7 +23,6 @@ export async function POST(req: NextRequest) {
         }
 
         await updateChannelBlueprint(channelId, { 
-            videoIdeas, 
             videoIdeaStatus: videoIdeaStatus ?? {} 
         });
 

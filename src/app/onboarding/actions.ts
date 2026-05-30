@@ -46,7 +46,6 @@ export async function completeNewTuberOnboarding(formData: FormData) {
             const marketSnapshot = marketSnapshotRaw ? JSON.parse(marketSnapshotRaw) : {};
 
             await updateChannelBlueprint(channel.id, {
-                videoIdeas,
                 contentStrategy: contentStrategy || undefined,
                 marketSnapshot,
             });

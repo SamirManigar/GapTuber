@@ -328,7 +328,7 @@ export async function POST(req: NextRequest) {
                             const targetChannelId = userChannels[0].id;
 
                             await db.insert(scans).values({
-                                userId: user.id,
+                                userId: dbUser.id,
                                 channelId: targetChannelId,
                                 keyword: input.keyword,
                                 competitors: input.competitors,
@@ -356,7 +356,6 @@ export async function POST(req: NextRequest) {
                             });
                         }
                     }
-                }
             } catch (dbError) {
                 console.error("[DB Error] Failed to save scan:", dbError);
             }
