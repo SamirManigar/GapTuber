@@ -2,12 +2,15 @@ import NextAuth from "next-auth";
 import Google from "next-auth/providers/google";
 import { upsertUser, getUserByEmail, getChannelsByUserId, updateChannelYoutubeTokens } from "@/db/queries";
 import { cookies } from "next/headers";
+import { logger } from "@/lib/logger";
+import { env } from "@/env";
 
 export const { handlers, auth: originalAuth, signIn, signOut } = NextAuth({
+    trustHost: true,
     providers: [
         Google({
-            clientId: process.env.AUTH_GOOGLE_ID!,
-            clientSecret: process.env.AUTH_GOOGLE_SECRET!,
+            clientId: env.AUTH_GOOGLE_ID!,
+            clientSecret: env.AUTH_GOOGLE_SECRET!,
             authorization: {
                 params: {
                     scope: [
@@ -32,9 +35,9 @@ export const { handlers, auth: originalAuth, signIn, signOut } = NextAuth({
                     user.image ?? undefined
                 );
                 
-                // Read the target channel ID cookie set before OAuth redirect
                 const cookieStore = await cookies();
                 const targetChannelId = cookieStore.get("connect_channel_id")?.value;
+                const sourceEmail = cookieStore.get("connect_source_email")?.value;
 
                 // Save YouTube OAuth tokens specifically to the target channel project
                 if (targetChannelId && account?.access_token) {
@@ -45,16 +48,33 @@ export const { handlers, auth: originalAuth, signIn, signOut } = NextAuth({
                             ? new Date(account.expires_at * 1000)
                             : null,
                     });
+
+                    // If this is a cross-account link (YouTube email != Login email),
+                    // we save the tokens but BLOCK the session switch by returning a redirect.
+                    // This keeps the user logged in as their primary self while successfully linking.
+                    if (sourceEmail && sourceEmail !== user.email) {
+                        logger.info(`[Auth] Cross-account link successful for channel ${targetChannelId}. Redirecting to prevent session swap.`);
+                        return `/dashboard/settings?channelId=${targetChannelId}&link_success=true`; 
+                    }
+                } else if (cookieStore.get("onboarding_youtube")?.value === "true" && account?.access_token) {
+                    // For new project onboarding, temporarily store tokens in secure cookies
+                    // The processing route will consume these and create the channel.
+                    cookieStore.set("tmp_yt_access", account.access_token, { maxAge: 600, httpOnly: true });
+                    if (account.refresh_token) {
+                        cookieStore.set("tmp_yt_refresh", account.refresh_token, { maxAge: 600, httpOnly: true });
+                    }
+                    if (account.expires_at) {
+                        cookieStore.set("tmp_yt_expires", account.expires_at.toString(), { maxAge: 600, httpOnly: true });
+                    }
                 }
             } catch (err) {
-                console.error("[Auth] DB upsert failed (non-blocking):", err);
+                logger.error("[Auth] DB upsert failed (non-blocking):", err);
             }
             return true;
         },
         async session({ session, token }) {
             if (session.user && token.sub) {
                 session.user.id = token.sub;
-                // @ts-ignore
                 session.user.hasChannels = token.hasChannels === true;
             }
             return session;
@@ -76,7 +96,7 @@ export const { handlers, auth: originalAuth, signIn, signOut } = NextAuth({
                         token.hasChannels = channels.length > 0;
                     }
                 } catch (e) {
-                    console.error("Failed to sync DB user for JWT", e);
+                    logger.error("[Auth] Failed to sync DB user for JWT:", e);
                 }
             }
 
@@ -95,7 +115,7 @@ export const { handlers, auth: originalAuth, signIn, signOut } = NextAuth({
     pages: {
         signIn: "/auth/signin",
     },
-    secret: process.env.AUTH_SECRET,
+    secret: env.AUTH_SECRET,
 });
 
 export const auth = originalAuth;

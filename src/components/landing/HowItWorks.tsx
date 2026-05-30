@@ -1,27 +1,33 @@
 const STEPS = [
     {
         num: "01",
-        title: "Channel deep analysis",
-        desc: "Point GapTuber at any YouTube channel with 500+ videos. We pull view velocity, engagement rates via Wilson score intervals, revenue estimates, upload consistency — from real API data.",
-        details: ["Bayesian engagement scoring", "EMA trend detection", "Revenue estimate by niche CPM", "Upload schedule analysis"],
+        title: "Competitors Gap Analysis",
+        desc: "Point GapTuber at any YouTube channel with 500+ videos. We pull view velocity, engagement rates, and upload consistency — from real API data.",
+        details: ["Bayesian engagement scoring", "EMA trend detection", "Upload schedule analysis"],
     },
     {
         num: "02",
         title: "Statistical gap detection",
-        desc: "Our 7-signal engine uses exponential decay weighting, TF-IDF keyword relevance, and frustration NLP to surface gaps with statistical confidence. No guessing.",
-        details: ["Wilson score engagement reliability", "Exponential decay velocity", "TF-IDF keyword relevance", "Comment frustration NLP"],
+        desc: "Our 7-signal engine uses exponential decay weighting and keyword relevance to surface gaps with statistical confidence. No guessing.",
+        details: ["Wilson score engagement reliability", "Exponential decay velocity", "Keyword relevance"],
     },
     {
         num: "03",
-        title: "SEO & tag optimisation",
-        desc: "Deterministic SEO scorer on your video's title, description, and tags. Get a 0–100 score, AI-improved title variants, 50 optimised tags, and competitor tag extraction.",
-        details: ["Title SEO scoring 0–100", "Keyword density analysis", "50 AI-generated tags", "Competitor tag extraction"],
+        title: "Comment Miner",
+        desc: "NLP analysis of comment pain points to find what viewers hate about existing content, surfacing direct opportunities.",
+        details: ["Frustration NLP", "Extract viewer pain points", "Identify missing topics"],
     },
     {
         num: "04",
-        title: "Thumbnail & revenue intelligence",
-        desc: "AI thumbnail concepts with colour psychology and CTR benchmarks. Revenue projections based on your niche's actual CPM data — not made-up averages.",
-        details: ["3 thumbnail concepts", "CTR optimisation tips", "Niche CPM benchmarks", "Monthly revenue projections"],
+        title: "Competitor Watchtower",
+        desc: "Track competitor performance over time. Get alerted when they post highly successful videos or when their metrics drop.",
+        details: ["Performance tracking", "Upload alerts", "Trend visualization"],
+    },
+    {
+        num: "05",
+        title: "GapTuber AI Studio",
+        desc: "Your personal YouTube AI assistant. Generate scripts, brainstorm ideas, and strategize with AI trained on YouTube analytics.",
+        details: ["Script Writer", "Idea Generator", "Channel Blueprint"],
     },
 ];
 

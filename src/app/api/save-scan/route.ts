@@ -2,21 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { db } from "@/db";
 import { scans } from "@/db/schema";
-import { getUserByEmail, getChannelsByUserId } from "@/db/queries";
+import { getUserByEmail, getChannelsByUserId, getChannelById } from "@/db/queries";
 import type { ScanResult, ScanAnalytics } from "@/db/schema";
+import { getCorsHeaders } from "@/lib/cors";
+import { logger } from "@/lib/logger";
 
-// Node.js runtime (not edge) — required so we can self-fetch /api/auth/session
-// to resolve the user from the Auth.js v5 JWE session token sent by the extension.
 
-function getCorsHeaders(req: NextRequest): Record<string, string> {
-    const origin = req.headers.get("origin") ?? "*";
-    return {
-        "Access-Control-Allow-Origin": origin,
-        "Access-Control-Allow-Credentials": "true",
-        "Access-Control-Allow-Methods": "POST, OPTIONS",
-        "Access-Control-Allow-Headers": "Content-Type, X-Session-Cookie",
-    };
-}
 
 export async function OPTIONS(req: NextRequest) {
     return new NextResponse(null, { status: 204, headers: getCorsHeaders(req) });
@@ -24,7 +15,7 @@ export async function OPTIONS(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
     const cors = getCorsHeaders(req);
-    console.log("[SaveScan] → POST received");
+    logger.debug("[SaveScan] → POST received");
 
     try {
         let userEmail: string | null = null;
@@ -33,15 +24,15 @@ export async function POST(req: NextRequest) {
         try {
             const session = await auth();
             userEmail = session?.user?.email ?? null;
-            console.log("[SaveScan] Step1 auth():", userEmail ?? "null");
+            logger.debug("[SaveScan] Step1 auth():", userEmail ?? "null");
         } catch (e) {
-            console.log("[SaveScan] Step1 auth() threw:", String(e).slice(0, 100));
+            logger.debug("[SaveScan] Step1 auth() threw:", String(e).slice(0, 100));
         }
 
         // ── Step 2: Forward X-Session-Cookie to /api/auth/session ─────────────────
         if (!userEmail) {
             const cookieValue = req.headers.get("X-Session-Cookie");
-            console.log("[SaveScan] Step2 X-Session-Cookie present:", !!cookieValue);
+            logger.debug("[SaveScan] Step2 X-Session-Cookie present:", !!cookieValue);
 
             if (cookieValue) {
                 const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
@@ -53,19 +44,19 @@ export async function POST(req: NextRequest) {
                             headers: { Cookie: `${name}=${cookieValue}` },
                         });
                         const sessionData = await sessionRes.json() as { user?: { email?: string } };
-                        console.log(`[SaveScan] Step2 ${name} →`, sessionData?.user?.email ?? "no email");
+                        logger.debug(`[SaveScan] Step2 ${name} →`, sessionData?.user?.email ?? "no email");
                         if (sessionData?.user?.email) {
                             userEmail = sessionData.user.email;
                             break;
                         }
                     } catch (e) {
-                        console.log(`[SaveScan] Step2 ${name} fetch error:`, String(e).slice(0, 100));
+                        logger.debug(`[SaveScan] Step2 ${name} fetch error:`, String(e).slice(0, 100));
                     }
                 }
             }
         }
 
-        console.log("[SaveScan] Final resolved email:", userEmail ?? "null");
+        logger.debug("[SaveScan] Final resolved email:", userEmail ?? "null");
 
         if (!userEmail) {
             return NextResponse.json(
@@ -76,7 +67,7 @@ export async function POST(req: NextRequest) {
 
         const user = await getUserByEmail(userEmail);
         if (!user) {
-            console.log("[SaveScan] User not found in DB for email:", userEmail);
+            logger.warn("[SaveScan] User not found in DB for email:", userEmail);
             return NextResponse.json(
                 { success: false, error: "User not found in DB" },
                 { status: 404, headers: cors }
@@ -86,20 +77,29 @@ export async function POST(req: NextRequest) {
         const userChannels = await getChannelsByUserId(user.id);
         if (userChannels.length === 0) {
             return NextResponse.json(
-                { success: false, error: "No channel found. Please complete AuraIQ onboarding first." },
+                { success: false, error: "No channel found. Please complete GapTuber onboarding first." },
                 { status: 400, headers: cors }
             );
         }
-        const targetChannelId = userChannels[0].id;
 
-        // ── Parse body ──────────────────────────────────────────────────────────────
+        // Use the channelId from request body if provided and valid, otherwise fall back to first
         const body = await req.json() as {
             keyword: string;
+            channelId?: string;
             competitors?: string[];
             result: ScanResult;
             analytics?: ScanAnalytics | null;
             rawData?: Record<string, unknown>;
         };
+
+        let targetChannelId: string;
+        if (body.channelId) {
+            // Verify the channel belongs to this user
+            const requestedChannel = userChannels.find(c => c.id === body.channelId);
+            targetChannelId = requestedChannel?.id ?? userChannels[0].id;
+        } else {
+            targetChannelId = userChannels[0].id;
+        }
 
         if (!body.keyword || !body.result?.gaps?.length) {
             return NextResponse.json(
@@ -119,7 +119,7 @@ export async function POST(req: NextRequest) {
             analytics: body.analytics ?? null,
         }).returning({ id: scans.id });
 
-        console.log(`[SaveScan] ✅ ${saved?.id} for ${userEmail} — "${body.keyword}"`);
+        logger.info(`[SaveScan] ✅ ${saved?.id} for ${userEmail} — "${body.keyword}"`);
         return NextResponse.json({ success: true, id: saved?.id }, { headers: cors });
 
     } catch (err) {

@@ -8,11 +8,15 @@ import { auth } from "@/auth";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createGroq } from "@ai-sdk/groq";
 import { streamText } from "ai";
-import { createBotMessage, getChannelById, getChannelScans, getChannelsByUserId, getUserByEmail } from "@/db/queries";
+import { createBotMessage, getChannelById, getChannelScans, getChannelsByUserId, getUserByEmail, deductUserCredits } from "@/db/queries";
 import type { GapItem, ScanAnalytics } from "@/db/schema";
+import { rateLimit, RATE_LIMITS } from "@/lib/rate-limit";
+import { logger } from "@/lib/logger";
+import * as Sentry from "@sentry/nextjs";
+import { scoreHookStrength } from "@/lib/engine/hookScorer";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+export const maxDuration = 300; // Fluid Compute: 5 minute max on Vercel Hobby plan
 
 // ─── File Processing Constants ────────────────────────────────────────────────
 const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25MB per file
@@ -84,7 +88,7 @@ function extractXLSXText(buffer: ArrayBuffer): string {
 // ─── Channel-Aware System Prompt ──────────────────────────────────────────────
 
 async function buildSystemPrompt(channelId?: string | null, userId?: string | null): Promise<string> {
-    const base = `You are AuraIQ — an expert YouTube scriptwriter, growth strategist, and content analyst.
+    const base = `You are GapTuber AI — an expert YouTube scriptwriter, growth strategist, and content analyst.
 
 **CRITICAL**: When users upload files (PDF, PPTX, DOCX, XLSX, images), the content is automatically extracted and included in the message marked with "--- File: filename ---". You CAN see and analyze this content directly. Do NOT say you cannot access files.
 
@@ -188,6 +192,25 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
 
+        // Rate limit: 50 messages per hour per user
+        const { max, windowMs } = RATE_LIMITS.aurabot;
+        const rl = await rateLimit(`aurabot:${session.user.id}`, max, windowMs);
+        if (!rl.allowed) {
+            return NextResponse.json(
+                { error: `Rate limit exceeded. Max ${max} messages/hour. Try again in ${Math.ceil(rl.resetMs / 60000)} min.` },
+                { status: 429 }
+            );
+        }
+
+        const dbUser = await getUserByEmail(session.user.email!);
+        if (!dbUser) {
+            return NextResponse.json({ error: "User not found" }, { status: 404 });
+        }
+
+        if (dbUser.credits < 1) {
+            return NextResponse.json({ error: "Insufficient credits. You need 1 credit to use the AI Studio." }, { status: 402 });
+        }
+
         // Parse multipart form data
         const formData = await req.formData();
         const input = formData.get("input") as string || "";
@@ -206,7 +229,7 @@ export async function POST(req: NextRequest) {
 
         // Process files
         let textContent = input;
-        const imageUrls: string[] = [];
+        const imageParts: Array<{ data: Uint8Array; mimeType: string }> = [];
         let hasImages = false;
 
         let totalSize = 0;
@@ -223,10 +246,8 @@ export async function POST(req: NextRequest) {
         for (const file of files) {
             if (file.type.startsWith("image/")) {
                 hasImages = true;
-                // Convert to base64 data URL for Gemini vision
                 const arrayBuf = await file.arrayBuffer();
-                const base64 = Buffer.from(arrayBuf).toString("base64");
-                imageUrls.push(`data:${file.type};base64,${base64}`);
+                imageParts.push({ data: new Uint8Array(arrayBuf), mimeType: file.type });
             } else if (file.type === "application/pdf") {
                 const buf = await file.arrayBuffer();
                 const text = await extractPDFText(new Uint8Array(buf));
@@ -250,7 +271,7 @@ export async function POST(req: NextRequest) {
             }
         }
 
-        if (!textContent.trim() && imageUrls.length === 0) {
+        if (!textContent.trim() && imageParts.length === 0) {
             return NextResponse.json({ error: "Message cannot be empty" }, { status: 400 });
         }
 
@@ -263,22 +284,27 @@ export async function POST(req: NextRequest) {
             content: msg.content,
         }));
 
-        // Model routing: Vision or Llama 70B Context
+        // Deduct 1 credit for using the bot
+        await deductUserCredits(dbUser.id, 1, "AI Studio Assistant");
+
+        // ─── Model Selection & Execution ───────────────────────────────────────
         let modelLabel: string;
         let result;
 
         if (hasImages) {
-            // Vision lane: Gemini
-            // ...
-            const google = createGoogleGenerativeAI({ apiKey: process.env.GEMINI_API_KEY! });
-            const geminiModel = google("gemini-2.0-flash");
-            modelLabel = "Gemini 2.0 Flash (Vision)";
+            // Vision lane: Gemini 1.5 Flash (Optimized for detailed visual analysis and has free tier)
+            if (!process.env.GEMINI_API_KEY) {
+                return NextResponse.json({ error: "Gemini API key not configured for Vision" }, { status: 503 });
+            }
+
+            modelLabel = "Gemini 2.5 Flash (Multimodal)";
+            const google = createGoogleGenerativeAI({ apiKey: process.env.GEMINI_API_KEY });
 
             const userContent: any[] = [{ type: "text", text: textContent }];
-            imageUrls.forEach(url => userContent.push({ type: "image", image: url }));
+            imageParts.forEach(part => userContent.push({ type: "image", image: part.data, mimeType: part.mimeType }));
 
             result = streamText({
-                model: geminiModel,
+                model: google("gemini-2.5-flash"),
                 system: systemPrompt,
                 messages: [...conversationHistory, { role: "user", content: userContent }],
                 onFinish: async ({ text }) => {
@@ -288,7 +314,7 @@ export async function POST(req: NextRequest) {
                 },
             });
         } else {
-            // Text lane: Exclusively Llama 3.3 70B with key rotation fallback
+            // Text lane: Llama 3.3 70B (Key-rotated for resilience)
             const keys = [
                 process.env.GROQ_API_KEY,
                 process.env.GROQ_API_KEY_2,
@@ -299,10 +325,10 @@ export async function POST(req: NextRequest) {
                 return NextResponse.json({ error: "Groq API keys not configured" }, { status: 503 });
             }
 
-            // Distribute load evenly across available keys to avoid rate limits
-            const activeKey = keys[Math.floor(Math.random() * keys.length)];
+            const shuffledKeys = [...keys].sort(() => Math.random() - 0.5);
+            let activeKey = shuffledKeys[0];
             const groq = createGroq({ apiKey: activeKey });
-            
+
             modelLabel = "Llama 3.3 70B (Groq)";
 
             result = streamText({
@@ -313,8 +339,20 @@ export async function POST(req: NextRequest) {
                     { role: "user", content: textContent },
                 ],
                 onFinish: async ({ text }) => {
-                    if (chatId && text) {
-                        await createBotMessage({ chatId, sender: "ai", content: text }).catch(() => {});
+                    // Tier 3B: auto-score hook if this looks like a script
+                    const isScript = text.includes("HOOK") || text.includes("0:00") || text.includes("Scene /");
+                    let finalText = text;
+                    if (isScript) {
+                        try {
+                            const hookResult = scoreHookStrength(text);
+                            const gradeEmoji = { S: "🔥", A: "✅", B: "🟡", C: "🟠", D: "🔴" }[hookResult.grade];
+                            finalText = text + `\n\n---\n**🎯 Hook Strength Audit** — Grade: **${hookResult.grade}** ${gradeEmoji} (${hookResult.score}/100)\n`
+                                + `> **Top Fix:** ${hookResult.recommendation}\n`
+                                + `> Pattern Interrupt: ${hookResult.hasPatternInterrupt ? "✅" : "❌"} | Open Loop: ${hookResult.hasOpenLoop ? "✅" : "❌"} | Stat/Fact: ${hookResult.hasStatOrFact ? "✅" : "❌"} | Viewer-Addressed: ${hookResult.hasDirect2ndPerson ? "✅" : "❌"}`;
+                        } catch { /* non-critical */ }
+                    }
+                    if (chatId && finalText) {
+                        await createBotMessage({ chatId, sender: "ai", content: finalText }).catch(() => {});
                     }
                 },
             });
@@ -327,7 +365,10 @@ export async function POST(req: NextRequest) {
         });
 
     } catch (error) {
-        console.error("AuraBot API error:", error);
+        logger.error("AuraBot API error:", error);
+        Sentry.captureException(error, {
+            tags: { service: "aurabot" }
+        });
         return NextResponse.json({ error: "Internal server error" }, { status: 500 });
     }
 }

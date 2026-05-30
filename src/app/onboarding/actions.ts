@@ -73,13 +73,23 @@ export async function completeExistingTuberOnboarding(formData: FormData) {
     }
 
     const channelUrl = formData.get("channelUrl") as string;
+    const youtubeChannelId = formData.get("youtubeChannelId") as string | null;
+    const channelName = formData.get("channelName") as string | null;
+    const category = formData.get("category") as string | null;
+
+    // Use real channel name if provided by analysis, else fall back to handle extraction
+    const name = channelName?.trim()
+        || channelUrl.split("/").pop()?.replace(/^@/, "")
+        || "Existing Channel";
 
     await createChannel({
         userId: dbUser.id,
-        name: channelUrl.split("/").pop() || "Existing Channel",
+        name,
         role: "existing_tuber",
-        youtubeChannelId: channelUrl
+        category: category || undefined,
+        youtubeChannelId: youtubeChannelId || channelUrl,
     });
 
     redirect("/dashboard");
 }
+

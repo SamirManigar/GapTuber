@@ -3,8 +3,8 @@
 import { ChatProvider, useChat } from "@/app/bot/context";
 import { EnhancedChatInput } from "@/app/bot/components/EnhancedChatInput";
 import { EnhancedChatBubble } from "@/app/bot/components/EnhancedChatBubble";
-import { useSearchParams } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
+import { useEffect, useRef, useState, Suspense } from "react";
 import { Bot, Plus, MessageSquare, Trash2, ChevronLeft, ChevronRight, ArrowDown } from "lucide-react";
 import type { BotMessage, BotChat } from "@/db/schema";
 
@@ -82,7 +82,7 @@ function WelcomeScreen() {
             <div className="w-16 h-16 bg-[#111113] border border-[#1e1e22] rounded-xl flex items-center justify-center mb-5">
                 <Bot className="w-8 h-8 text-emerald-400" />
             </div>
-            <h2 className="text-2xl font-bold text-white mb-2 tracking-tight">AuraIQ AI Studio</h2>
+            <h2 className="text-2xl font-bold text-white mb-2 tracking-tight">GapTuber AI Studio</h2>
             <p className="text-zinc-500 text-sm text-center mb-8 max-w-sm">Channel-aware scriptwriter and growth strategist. Upload PDFs, images, DOCX, PPTX, and more.</p>
             <div className="grid grid-cols-2 gap-2.5 w-full">
                 {suggestions.map((s, i) => (
@@ -152,16 +152,21 @@ function ChatArea() {
                 }
             `}</style>
 
-            <div 
-                ref={scrollRef} 
-                onScroll={handleScroll} 
+            <div
+                ref={scrollRef}
+                onScroll={handleScroll}
                 className="flex-1 overflow-y-auto chat-scroll-area scroll-smooth pt-4 pb-20 px-4 md:px-8"
             >
                 <div className="max-w-4xl mx-auto w-full">
                     {messages.map((msg: BotMessage, index: number) => {
                         const isLastAI = index === messages.length - 1 && msg.sender === "ai" && !isGenerating;
                         const isScript = msg.content.includes("| Scene / Section |");
-                        
+
+                        // Skip rendering empty AI messages to avoid double avatars with the "generating..." skeleton
+                        if (msg.sender === "ai" && msg.content.trim() === "") {
+                            return null;
+                        }
+
                         return (
                             <div key={msg.id} className="animate-in fade-in slide-in-from-bottom-2 duration-300">
                                 <EnhancedChatBubble message={msg} />
@@ -244,6 +249,7 @@ function BotHeader({ title, collapsed, setCollapsed }: { title?: string; collaps
 
 // ── Main Page ────────────────────────────────────────────────────────────────
 function BotPageInner() {
+    const router = useRouter();
     const searchParams = useSearchParams();
     const { createChatAndSend, sendMessage, chats, activeChatId, isLoadingChats } = useChat();
     const hasSentRef = useRef(false);
@@ -253,9 +259,27 @@ function BotPageInner() {
         if (hasSentRef.current || isLoadingChats) return;
         const title = searchParams?.get("title");
         const prompt = searchParams?.get("prompt");
-        if (title && prompt) { hasSentRef.current = true; createChatAndSend(title, prompt); }
-        else if (prompt) { hasSentRef.current = true; sendMessage(prompt); }
-    }, [searchParams, createChatAndSend, sendMessage, isLoadingChats]);
+        const channelId = searchParams?.get("channelId");
+
+        if (title && prompt) {
+            hasSentRef.current = true;
+            createChatAndSend(title, prompt);
+
+            // Clean URL to prevent re-trigger on reload
+            const newParams = new URLSearchParams();
+            if (channelId) newParams.set("channelId", channelId);
+            router.replace(`/dashboard/bot?${newParams.toString()}`);
+        }
+        else if (prompt) {
+            hasSentRef.current = true;
+            sendMessage(prompt);
+
+            // Clean URL
+            const newParams = new URLSearchParams();
+            if (channelId) newParams.set("channelId", channelId);
+            router.replace(`/dashboard/bot?${newParams.toString()}`);
+        }
+    }, [searchParams, createChatAndSend, sendMessage, isLoadingChats, router]);
 
     const activeChat = chats.find(c => c.id === activeChatId);
 
@@ -273,12 +297,23 @@ function BotPageInner() {
     );
 }
 
-export default function BotPage() {
+function BotPageContent() {
+    const searchParams = useSearchParams();
+    const channelId = searchParams?.get("channelId");
+
     return (
-        <ChatProvider>
+        <ChatProvider channelId={channelId}>
             <div className="h-full flex flex-col overflow-hidden">
                 <BotPageInner />
             </div>
         </ChatProvider>
+    );
+}
+
+export default function BotPage() {
+    return (
+        <Suspense fallback={<div className="h-full bg-[#0c0c0e] flex items-center justify-center text-zinc-500">Loading AI Studio...</div>}>
+            <BotPageContent />
+        </Suspense>
     );
 }

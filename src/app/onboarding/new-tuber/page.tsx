@@ -1,29 +1,32 @@
 "use client";
 
 import { motion, AnimatePresence } from "framer-motion";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { completeNewTuberOnboarding } from "../actions";
 import {
     Loader2, CheckCircle2, Wand2, Youtube, Sparkles, Hash,
     TrendingUp, BarChart3, Target, Zap, Users, Globe,
-    ArrowRight, Star, Trophy, Flame, Shield, Eye
+    ArrowRight, Star, Trophy, Flame, Shield, Eye, ChevronDown
 } from "lucide-react";
 
 // ─── Full Category List ──────────────────────────────────────────────────────
 
 const CATEGORIES = [
-    { value: "tech", label: "Technology", icon: "💻" },
-    { value: "ai", label: "AI & Machine Learning", icon: "🤖" },
-    { value: "programming", label: "Programming", icon: "⌨️" },
-    { value: "gaming", label: "Gaming", icon: "🎮" },
-    { value: "education", label: "Education", icon: "📚" },
-    { value: "finance", label: "Finance & Crypto", icon: "💰" },
-    { value: "entertainment", label: "Entertainment", icon: "🎬" },
-    { value: "health", label: "Health & Fitness", icon: "💪" },
-    { value: "business", label: "Business & SaaS", icon: "📈" },
-    { value: "science", label: "Science", icon: "🔬" },
-    { value: "lifestyle", label: "Lifestyle", icon: "✨" },
-    { value: "music", label: "Music & Audio", icon: "🎵" },
+    { value: "cars", label: "Cars and vehicles", icon_emoji: "🚗" },
+    { value: "comedy", label: "Comedy", icon_emoji: "😂" },
+    { value: "education", label: "Education", icon_emoji: "📚" },
+    { value: "entertainment", label: "Entertainment", icon_emoji: "🎬" },
+    { value: "film", label: "Film and animation", icon_emoji: "🎞️" },
+    { value: "gaming", label: "Gaming", icon_emoji: "🎮" },
+    { value: "howto", label: "How-to and style", icon_emoji: "💅" },
+    { value: "music", label: "Music", icon_emoji: "🎵" },
+    { value: "news", label: "News and politics", icon_emoji: "📰" },
+    { value: "nonprofit", label: "Non-profits and activism", icon_emoji: "🤝" },
+    { value: "people", label: "People and blogs", icon_emoji: "🤳" },
+    { value: "pets", label: "Pets and animals", icon_emoji: "🐶" },
+    { value: "science", label: "Science and technology", icon_emoji: "🧪" },
+    { value: "sport", label: "Sport", icon_emoji: "⚽" },
+    { value: "travel", label: "Travel and events", icon_emoji: "✈️" },
 ];
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -143,6 +146,38 @@ export default function NewTuberPage() {
     const [generationStage, setGenerationStage] = useState(0);
     const [error, setError] = useState("");
     const [blueprint, setBlueprint] = useState<BlueprintData | null>(null);
+    const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+    const dropdownRef = useRef<HTMLDivElement>(null);
+
+    // Handle click outside dropdown
+    useEffect(() => {
+        function handleClickOutside(event: MouseEvent) {
+            if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+                setIsDropdownOpen(false);
+            }
+        }
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, []);
+
+    // ── Tab title updates during generation ───────────────────────────────────
+    useEffect(() => {
+        const STAGE_TITLES: Record<number, string> = {
+            1: "⏳ Mining YouTube Market...",
+            2: "🔍 Analyzing Competition...",
+            3: "✨ Generating Channel Names...",
+            4: "🎯 Building Video Roadmap...",
+            5: "✅ Blueprint Ready!",
+        };
+        if (isGenerating && generationStage > 0) {
+            document.title = STAGE_TITLES[generationStage] ?? "⏳ Building Channel...";
+        } else if (!isGenerating && blueprint) {
+            document.title = "✅ Blueprint Ready — GapTuber";
+        } else {
+            document.title = "New Channel — GapTuber";
+        }
+        return () => { document.title = "GapTuber"; };
+    }, [isGenerating, generationStage, blueprint]);
 
     const handleGenerate = async () => {
         setIsGenerating(true);
@@ -206,48 +241,75 @@ export default function NewTuberPage() {
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, x: -20 }}
-                        className="bg-white p-8 md:p-12 border border-slate-200 rounded-3xl shadow-sm"
+                        className="bg-[#0c0c0e] p-8 md:p-12 border border-[#1e1e22] rounded-3xl"
                     >
                         <div className="text-center mb-10">
-                            <h2 className="text-3xl font-bold text-slate-900 mb-4">Let&apos;s Build Your Channel</h2>
-                            <p className="text-slate-600">Tell us what you want to create. Our AI will analyze the YouTube market and engineer the perfect foundation.</p>
+                            <h2 className="text-3xl font-bold text-white mb-4">Let&apos;s Build Your Channel</h2>
+                            <p className="text-zinc-500">Tell us what you want to create. Our AI will analyze the YouTube market and engineer the perfect foundation.</p>
                         </div>
 
                         <div className="space-y-8">
                             <div>
-                                <label className="block text-sm font-bold text-slate-700 mb-3">What&apos;s your niche?</label>
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                                    {CATEGORIES.map(cat => (
-                                        <button
-                                            key={cat.value}
-                                            type="button"
-                                            onClick={() => setCategory(cat.value)}
-                                            className={`p-3 text-left border-2 rounded-xl transition-all ${
-                                                category === cat.value
-                                                    ? "border-emerald-600 bg-emerald-50 text-emerald-700 shadow-md shadow-emerald-500/10"
-                                                    : "border-slate-200 hover:border-emerald-300 text-slate-700"
-                                            }`}
-                                        >
-                                            <span className="text-lg mr-2">{cat.icon}</span>
-                                            <span className="text-sm font-medium">{cat.label}</span>
-                                        </button>
-                                    ))}
+                                <label className="block text-sm font-bold text-zinc-400 mb-3">What&apos;s your niche?</label>
+                                <div className="relative" ref={dropdownRef}>
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                                        className="w-full p-4 bg-[#111113] border border-[#1e1e22] text-white rounded-xl focus:ring-4 focus:ring-emerald-500/20 focus:border-emerald-600 transition-all text-lg flex items-center justify-between outline-none cursor-pointer"
+                                    >
+                                        <span className={category ? "text-white" : "text-zinc-600"}>
+                                            {category ? category : "Select your niche"}
+                                        </span>
+                                        <ChevronDown className={`w-5 h-5 text-zinc-500 transition-transform duration-200 ${isDropdownOpen ? "rotate-180" : ""}`} />
+                                    </button>
+                                    
+                                    <AnimatePresence>
+                                        {isDropdownOpen && (
+                                            <motion.div
+                                                initial={{ opacity: 0, y: 4, scale: 0.98 }}
+                                                animate={{ opacity: 1, y: 0, scale: 1 }}
+                                                exit={{ opacity: 0, y: 4, scale: 0.98 }}
+                                                className="absolute z-50 w-full mt-2 bg-[#0c0c0e] border border-[#1e1e22] rounded-xl shadow-2xl overflow-hidden backdrop-blur-xl"
+                                            >
+                                                <div className="max-h-[280px] overflow-y-auto p-1.5 scrollbar-thin scrollbar-thumb-zinc-800">
+                                                    {CATEGORIES.map(cat => (
+                                                        <button
+                                                            key={cat.value}
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setCategory(cat.label);
+                                                                setIsDropdownOpen(false);
+                                                            }}
+                                                            className={`w-full p-3 text-left rounded-lg transition-all flex items-center gap-3 ${
+                                                                category === cat.label
+                                                                    ? "bg-emerald-500/10 text-emerald-400 font-bold"
+                                                                    : "text-zinc-400 hover:bg-white/5 hover:text-white"
+                                                            }`}
+                                                        >
+                                                            <span className="text-xl">{cat.icon_emoji}</span>
+                                                            <span className="text-base">{cat.label}</span>
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </motion.div>
+                                        )}
+                                    </AnimatePresence>
                                 </div>
                             </div>
 
                             <div>
-                                <label className="block text-sm font-bold text-slate-700 mb-3">What&apos;s the specific topic?</label>
+                                <label className="block text-sm font-bold text-zinc-400 mb-3">What&apos;s the specific topic?</label>
                                 <input
                                     type="text"
                                     placeholder="e.g. Building home lab servers, AI coding tools, Minimalist desk setups"
-                                    className="w-full p-4 border-2 border-slate-200 rounded-xl focus:ring-4 focus:ring-emerald-500/20 focus:border-emerald-600 transition-all text-lg"
+                                    className="w-full p-4 border border-[#1e1e22] bg-[#111113] text-white rounded-xl focus:ring-4 focus:ring-emerald-500/20 focus:border-emerald-600 transition-all text-lg placeholder:text-zinc-700 outline-none"
                                     value={topic}
                                     onChange={(e) => setTopic(e.target.value)}
                                 />
                             </div>
 
                             {error && (
-                                <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-red-600 text-sm">
+                                <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 text-red-400 text-sm">
                                     {error}
                                 </div>
                             )}
@@ -271,29 +333,29 @@ export default function NewTuberPage() {
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
-                        className="bg-white p-12 border border-slate-200 rounded-3xl shadow-sm text-center flex flex-col items-center justify-center min-h-[400px]"
+                        className="bg-[#0c0c0e] p-12 border border-[#1e1e22] rounded-3xl text-center flex flex-col items-center justify-center min-h-[400px]"
                     >
                         <div className="relative mb-8">
-                            <div className="w-24 h-24 border-4 border-emerald-100 rounded-full animate-pulse" />
-                            <div className="absolute inset-0 border-4 border-emerald-600 border-t-transparent rounded-full animate-spin" />
-                            <Wand2 className="absolute inset-0 m-auto w-8 h-8 text-emerald-600 animate-bounce" />
+                            <div className="w-24 h-24 border-4 border-emerald-900/40 rounded-full animate-pulse" />
+                            <div className="absolute inset-0 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+                            <Wand2 className="absolute inset-0 m-auto w-8 h-8 text-emerald-400 animate-bounce" />
                         </div>
-                        <h3 className="text-2xl font-bold text-slate-900 mb-2">Analyzing &ldquo;{topic}&rdquo; Market...</h3>
-                        <p className="text-slate-500 mb-6">Scanning real YouTube data for your niche</p>
-                        <div className="w-full max-w-md bg-slate-100 rounded-full h-2.5 mb-6 overflow-hidden">
+                        <h3 className="text-2xl font-bold text-white mb-2">Analyzing &ldquo;{topic}&rdquo; Market...</h3>
+                        <p className="text-zinc-500 mb-6">Scanning real YouTube data for your niche</p>
+                        <div className="w-full max-w-md bg-[#1e1e22] rounded-full h-2 mb-6 overflow-hidden">
                             <motion.div
-                                className="bg-gradient-to-r from-emerald-600 to-indigo-600 h-2.5 rounded-full"
+                                className="bg-gradient-to-r from-emerald-600 to-emerald-400 h-2 rounded-full"
                                 initial={{ width: 0 }}
                                 animate={{ width: `${Math.min(generationStage * 20, 100)}%` }}
                                 transition={{ duration: 0.5 }}
                             />
                         </div>
-                        <div className="space-y-3 text-slate-500 font-medium">
+                        <div className="space-y-3 font-medium">
                             {STAGES.map((stage, i) => {
                                 const Icon = stage.icon;
                                 const active = generationStage > i;
                                 return (
-                                    <p key={i} className={`flex items-center justify-center gap-2 transition-all ${active ? "text-emerald-600" : "opacity-40"}`}>
+                                    <p key={i} className={`flex items-center justify-center gap-2 transition-all ${active ? "text-emerald-400" : "text-zinc-700"}`}>
                                         {active ? <CheckCircle2 className="w-4 h-4" /> : <Icon className="w-4 h-4" />}
                                         {stage.label}
                                     </p>
@@ -387,11 +449,11 @@ export default function NewTuberPage() {
                         </div>
 
                         {/* Channel Name Selection */}
-                        <div className="bg-white p-8 border border-slate-200 rounded-3xl shadow-sm">
-                            <h3 className="text-xl font-bold text-slate-900 mb-2 flex items-center gap-2">
-                                <Star className="w-5 h-5 text-amber-500" /> Choose Your Channel Name
+                        <div className="bg-[#0c0c0e] p-8 border border-[#1e1e22] rounded-3xl">
+                            <h3 className="text-xl font-bold text-white mb-2 flex items-center gap-2">
+                                <Star className="w-5 h-5 text-amber-400" /> Choose Your Channel Name
                             </h3>
-                            <p className="text-slate-500 text-sm mb-6">AI-generated unique names for your &ldquo;{topic}&rdquo; channel</p>
+                            <p className="text-zinc-500 text-sm mb-6">AI-generated unique names for your &ldquo;{topic}&rdquo; channel</p>
 
                             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-3">
                                 {blueprint.channelNames.map((cn, i) => (
@@ -399,74 +461,72 @@ export default function NewTuberPage() {
                                         key={i}
                                         type="button"
                                         onClick={() => setSelectedChannelName(cn.name)}
-                                        className={`p-4 text-left border-2 rounded-xl transition-all ${
+                                        className={`p-4 text-left border rounded-xl transition-all ${
                                             selectedChannelName === cn.name
-                                                ? "border-emerald-600 bg-emerald-50 shadow-md shadow-emerald-500/10"
-                                                : "border-slate-200 hover:border-emerald-300"
+                                                ? "border-emerald-500 bg-emerald-500/10 shadow-md shadow-emerald-500/10"
+                                                : "border-[#1e1e22] hover:border-emerald-800 bg-[#111113]"
                                         }`}
                                     >
-                                        <div className="font-bold text-slate-900 text-lg mb-1">{cn.name}</div>
-                                        <div className="text-xs text-emerald-500 font-semibold mb-1">{cn.vibe}</div>
-                                        <div className="text-xs text-slate-500 leading-relaxed">{cn.reasoning}</div>
+                                        <div className="font-bold text-white text-lg mb-1">{cn.name}</div>
+                                        <div className="text-xs text-emerald-400 font-semibold mb-1">{cn.vibe}</div>
+                                        <div className="text-xs text-zinc-500 leading-relaxed">{cn.reasoning}</div>
                                     </button>
                                 ))}
                             </div>
 
-                            {/* Channel Description */}
                             {blueprint.channelDescription && (
-                                <div className="mt-6 bg-slate-50 p-4 rounded-xl border border-slate-100">
-                                    <div className="text-xs font-bold text-slate-600 mb-2">📝 AI Generated Description</div>
-                                    <p className="text-sm text-slate-600 leading-relaxed">{blueprint.channelDescription}</p>
+                                <div className="mt-6 bg-[#111113] p-4 rounded-xl border border-[#1e1e22]">
+                                    <div className="text-xs font-bold text-zinc-500 mb-2">📝 AI Generated Description</div>
+                                    <p className="text-sm text-zinc-400 leading-relaxed">{blueprint.channelDescription}</p>
                                 </div>
                             )}
 
-                            {/* Tags */}
                             <div className="mt-4">
-                                <div className="flex items-center gap-2 text-sm font-bold text-slate-600 mb-2">
+                                <div className="flex items-center gap-2 text-sm font-bold text-zinc-500 mb-2">
                                     <Hash className="w-4 h-4" /> Optimized Tags
                                 </div>
                                 <div className="flex flex-wrap gap-2">
                                     {blueprint.suggestedTags.slice(0, 15).map((tag, i) => (
-                                        <span key={i} className="px-3 py-1 bg-emerald-50 text-emerald-700 border border-emerald-100 rounded-lg text-xs font-semibold">{tag}</span>
+                                        <span key={i} className="px-3 py-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-lg text-xs font-semibold">{tag}</span>
                                     ))}
                                 </div>
                             </div>
                         </div>
 
-                        {/* Video Ideas — Aligned to Topic */}
+                        {/* Video Ideas */}
                         <div className="space-y-4">
-                            <h3 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+                            <h3 className="text-xl font-bold text-white flex items-center gap-2">
                                 <Youtube className="w-5 h-5 text-red-500" /> Your First Videos (AI-Powered Roadmap)
                             </h3>
                             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
                                 {blueprint.videoIdeas.map((idea, idx) => (
-                                    <div key={idx} className="bg-white border-2 border-slate-200 rounded-2xl p-6 hover:border-emerald-500 hover:shadow-lg transition-all group">
+                                    <div key={idx} className="bg-[#0c0c0e] border border-[#1e1e22] rounded-2xl p-6 hover:border-emerald-700 hover:shadow-lg hover:shadow-emerald-500/5 transition-all group">
                                         <div className="flex items-center justify-between mb-3">
-                                            <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center font-bold text-sm">
+                                            <div className="w-8 h-8 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center justify-center font-bold text-sm">
                                                 {idx + 1}
                                             </div>
                                             <ViewPotentialBadge level={idea.estimatedViewPotential} />
                                         </div>
 
-                                        <h4 className="font-bold text-slate-900 mb-2 leading-tight group-hover:text-emerald-600 transition-colors text-sm">
+                                        <h4 className="font-bold text-white mb-2 leading-tight group-hover:text-emerald-400 transition-colors text-sm">
                                             {idea.title}
                                         </h4>
 
-                                        <div className="bg-slate-50 rounded-lg p-3 mb-3 border border-slate-100">
-                                            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Hook</div>
-                                            <p className="text-xs text-slate-600 italic">&ldquo;{idea.hook}&rdquo;</p>
+                                        <div className="bg-[#111113] rounded-lg p-3 mb-3 border border-[#1e1e22]">
+                                            <div className="text-[10px] font-bold text-zinc-600 uppercase tracking-wider mb-1">Hook</div>
+                                            <p className="text-xs text-zinc-400 italic">&ldquo;{idea.hook}&rdquo;</p>
                                         </div>
 
                                         <div className="space-y-2 text-xs">
-                                            <div className="flex items-center gap-2 text-slate-500">
-                                                <span className="font-semibold text-slate-700">Format:</span> {idea.format}
+                                            <div className="flex items-center gap-2 text-zinc-500">
+                                                <span className="font-semibold text-zinc-400">Format:</span> {idea.format}
                                             </div>
-                                            <div className="flex items-center gap-2 text-slate-500">
+                                            <div className="flex items-center gap-2 text-zinc-500">
                                                 <Users className="w-3 h-3" /> {idea.targetAudience}
                                             </div>
                                         </div>
 
-                                        <p className="text-xs text-slate-400 mt-3 leading-relaxed">{idea.whyItWorks}</p>
+                                        <p className="text-xs text-zinc-600 mt-3 leading-relaxed">{idea.whyItWorks}</p>
                                     </div>
                                 ))}
                             </div>
@@ -474,19 +534,19 @@ export default function NewTuberPage() {
 
                         {/* Sub-Niches */}
                         {blueprint.subNiches.length > 0 && (
-                            <div className="bg-white p-6 border border-slate-200 rounded-3xl shadow-sm">
-                                <h3 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
-                                    <Trophy className="w-5 h-5 text-amber-500" /> Promising Sub-Niches
+                            <div className="bg-[#0c0c0e] p-6 border border-[#1e1e22] rounded-3xl">
+                                <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                                    <Trophy className="w-5 h-5 text-amber-400" /> Promising Sub-Niches
                                 </h3>
                                 <div className="grid md:grid-cols-3 gap-3">
                                     {blueprint.subNiches.map((sn, i) => (
-                                        <div key={i} className="p-4 bg-slate-50 rounded-xl border border-slate-100">
-                                            <div className="font-semibold text-slate-900 mb-1">{sn.name}</div>
-                                            <div className="text-xs text-slate-500 mb-2">{sn.opportunity}</div>
+                                        <div key={i} className="p-4 bg-[#111113] rounded-xl border border-[#1e1e22]">
+                                            <div className="font-semibold text-white mb-1">{sn.name}</div>
+                                            <div className="text-xs text-zinc-500 mb-2">{sn.opportunity}</div>
                                             <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
-                                                sn.competition === "Low" ? "bg-emerald-100 text-emerald-700" :
-                                                sn.competition === "Medium" ? "bg-amber-100 text-amber-700" :
-                                                "bg-red-100 text-red-700"
+                                                sn.competition === "Low" ? "bg-emerald-500/10 text-emerald-400" :
+                                                sn.competition === "Medium" ? "bg-amber-500/10 text-amber-400" :
+                                                "bg-red-500/10 text-red-400"
                                             }`}>
                                                 {sn.competition} Competition
                                             </span>
@@ -496,13 +556,12 @@ export default function NewTuberPage() {
                             </div>
                         )}
 
-                        {/* Content Strategy */}
                         {blueprint.contentStrategy && (
-                            <div className="bg-gradient-to-r from-emerald-50 to-indigo-50 p-6 border border-emerald-200 rounded-3xl">
-                                <h3 className="text-lg font-bold text-slate-900 mb-2 flex items-center gap-2">
-                                    <Zap className="w-5 h-5 text-emerald-600" /> First Month Strategy
+                            <div className="bg-emerald-500/5 p-6 border border-emerald-500/20 rounded-3xl">
+                                <h3 className="text-lg font-bold text-white mb-2 flex items-center gap-2">
+                                    <Zap className="w-5 h-5 text-emerald-400" /> First Month Strategy
                                 </h3>
-                                <p className="text-sm text-slate-700 leading-relaxed">{blueprint.contentStrategy}</p>
+                                <p className="text-sm text-zinc-400 leading-relaxed">{blueprint.contentStrategy}</p>
                             </div>
                         )}
 
@@ -519,7 +578,7 @@ export default function NewTuberPage() {
                             <button
                                 type="submit"
                                 disabled={!selectedChannelName}
-                                className="w-full py-5 bg-slate-900 text-white rounded-xl font-bold text-lg hover:bg-slate-800 disabled:opacity-50 transition-all flex items-center justify-center gap-2 shadow-xl active:scale-[0.98]"
+                                className="w-full py-5 bg-gradient-to-r from-emerald-600 to-emerald-500 text-white rounded-xl font-bold text-lg hover:opacity-90 disabled:opacity-50 transition-all flex items-center justify-center gap-2 shadow-xl shadow-emerald-500/20 active:scale-[0.98]"
                             >
                                 <CheckCircle2 className="w-5 h-5" />
                                 Save &ldquo;{selectedChannelName || "Select a Name"}&rdquo; & Enter Dashboard

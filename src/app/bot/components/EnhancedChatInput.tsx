@@ -1,7 +1,7 @@
 "use client";
 
 import { FC, useState, useRef, useEffect } from "react";
-import { Brain, Mic, Send, Square, Paperclip, X, FileText, AlertCircle, Loader2 } from "lucide-react";
+import { Brain, Mic, Send, Square, Paperclip, X, FileText, AlertCircle, Loader2, Zap } from "lucide-react";
 import { useChat } from "@/app/bot/context";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -227,10 +227,13 @@ export function EnhancedChatInput() {
                             <button
                                 type="submit"
                                 disabled={!input.trim() && attachments.length === 0}
-                                className="p-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                                className="p-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
                                 title="Send"
                             >
-                                <Send className="w-4.5 h-4.5" />
+                                <Send className="w-4 h-4" />
+                                <span className="flex items-center gap-0.5 text-[10px] font-mono font-bold bg-black/20 px-1.5 py-0.5 rounded text-emerald-100">
+                                    <Zap className="w-3 h-3 fill-amber-400 text-amber-400" /> -1
+                                </span>
                             </button>
                         )}
                     </div>

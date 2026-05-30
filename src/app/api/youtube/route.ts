@@ -1,6 +1,10 @@
 import { NextResponse, NextRequest } from "next/server";
 import { auth } from "@/auth";
 import { getChannelById, updateChannelYoutubeTokens } from "@/db/queries";
+import { getValidYouTubeToken, getTokenErrorMessage } from "@/lib/youtube-tokens";
+import { db } from "@/db";
+import { channels } from "@/db/schema";
+import { eq } from "drizzle-orm";
 
 const YOUTUBE_API_BASE = "https://www.googleapis.com/youtube/v3";
 
@@ -32,43 +36,19 @@ export async function GET(req: NextRequest) {
     }
 
     const channel = await getChannelById(channelId);
+    // Validate channel ownership
     if (!channel || channel.userId !== session.user.id) {
         return NextResponse.json({ error: "Project channel not found or unauthorized." }, { status: 404 });
     }
 
-    if (!channel.youtubeAccessToken) {
-        return NextResponse.json(
-            { error: "No YouTube connection found. Please reconnect." },
-            { status: 403 }
-        );
-    }
-
-    let accessToken = channel.youtubeAccessToken;
-
-    // Check if token is expired and refresh if possible
-    if (channel.youtubeTokenExpiresAt && new Date() >= channel.youtubeTokenExpiresAt) {
-        if (!channel.youtubeRefreshToken) {
-            return NextResponse.json(
-                { error: "YouTube token expired. Please reconnect." },
-                { status: 403 }
-            );
-        }
-        const refreshed = await refreshAccessToken(channel.youtubeRefreshToken);
-        if (refreshed.access_token) {
-            accessToken = refreshed.access_token;
-            await updateChannelYoutubeTokens(channel.id, {
-                accessToken: refreshed.access_token,
-                refreshToken: channel.youtubeRefreshToken,
-                expiresAt: refreshed.expires_in
-                    ? new Date(Date.now() + refreshed.expires_in * 1000)
-                    : null,
-            });
-        } else {
-            return NextResponse.json(
-                { error: "Failed to refresh YouTube token. Please reconnect." },
-                { status: 403 }
-            );
-        }
+    // Resolve a valid (auto-refreshed if needed) access token
+    let accessToken: string;
+    try {
+        const result = await getValidYouTubeToken(channelId);
+        accessToken = result.accessToken;
+    } catch (err) {
+        const { status, message } = getTokenErrorMessage(err);
+        return NextResponse.json({ error: message }, { status });
     }
 
     try {
@@ -95,6 +75,18 @@ export async function GET(req: NextRequest) {
                 expiresAt: channel.youtubeTokenExpiresAt,
                 youtubeChannelId: ytChannel.id,
             });
+        }
+
+        // Update branding data (logo, subs) if missing or changed
+        const currentBranding = channel.brandingData as any || {};
+        const thumbnail = ytChannel.snippet?.thumbnails?.high?.url || ytChannel.snippet?.thumbnails?.default?.url;
+        const subscribers = ytChannel.statistics?.subscriberCount || "0";
+        if (currentBranding.thumbnail !== thumbnail || currentBranding.subscribers !== subscribers) {
+            await db.update(channels)
+                .set({
+                    brandingData: { ...currentBranding, thumbnail, subscribers }
+                })
+                .where(eq(channels.id, channel.id));
         }
 
         // Fetch latest 10 videos

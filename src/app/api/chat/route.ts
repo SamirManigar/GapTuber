@@ -6,14 +6,17 @@ import {
 } from "@/db/queries";
 import { NextResponse } from "next/server";
 
-export async function GET() {
+export async function GET(req: Request) {
     try {
         const session = await auth();
         if (!session?.user?.id) {
             return new NextResponse("Unauthorized", { status: 401 });
         }
 
-        const chats = await getBotChatsByUserId(session.user.id);
+        const { searchParams } = new URL(req.url);
+        const channelId = searchParams.get("channelId");
+
+        const chats = await getBotChatsByUserId(session.user.id, channelId || undefined);
         return NextResponse.json(chats);
     } catch (error) {
         console.error("Failed to fetch chats:", error);
@@ -28,8 +31,8 @@ export async function POST(req: Request) {
             return new NextResponse("Unauthorized", { status: 401 });
         }
 
-        const { title } = await req.json();
-        const chat = await createBotChat(session.user.id, title);
+        const { title, channelId } = await req.json();
+        const chat = await createBotChat(session.user.id, title, channelId);
         
         return NextResponse.json(chat);
     } catch (error) {

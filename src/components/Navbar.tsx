@@ -13,14 +13,14 @@ export default function Navbar() {
                 <Link href="/" className="flex items-center gap-2">
                     <img src="/logo.svg" alt="GapTuber Logo" className="h-7 w-auto relative -top-[1px]" />
                     <span className="text-sm font-bold text-white font-mono tracking-tight">GapTuber</span>
-                    <span className="text-[10px] font-mono text-zinc-600 border border-zinc-800 px-1.5 py-0.5 rounded">beta</span>
+                    <span className="text-[10px] font-mono text-emerald-500 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded">beta</span>
                 </Link>
 
                 {/* Nav */}
                 <div className="hidden md:flex items-center gap-7 text-sm text-zinc-500">
-                    <Link href="#why-gaptuber" className="hover:text-zinc-200 transition-colors">Compare</Link>
-                    <Link href="#how-it-works" className="hover:text-zinc-200 transition-colors">How it works</Link>
-                    <Link href="#sample-output" className="hover:text-zinc-200 transition-colors">Example</Link>
+                    <a href="#why-gaptuber" className="hover:text-zinc-200 transition-colors">Compare</a>
+                    <a href="#how-it-works" className="hover:text-zinc-200 transition-colors">How it works</a>
+                    <a href="#sample-output" className="hover:text-zinc-200 transition-colors">Example</a>
                 </div>
 
                 {/* Auth */}

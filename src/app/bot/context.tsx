@@ -6,6 +6,7 @@ import { BotChat, BotMessage } from "@/db/schema";
 interface ChatContextType {
     chats: BotChat[];
     activeChatId: string | null;
+    activeChat: BotChat | null;
     messages: BotMessage[];
     isLoadingChats: boolean;
     isGenerating: boolean;
@@ -34,7 +35,8 @@ export function ChatProvider({ children, channelId = null }: { children: ReactNo
     // ── Fetch Chat History ──────────────────────────────────────────────────
     const fetchChats = async () => {
         try {
-            const res = await fetch("/api/chat");
+            const url = channelId ? `/api/chat?channelId=${channelId}` : "/api/chat";
+            const res = await fetch(url);
             if (res.ok) {
                 const data = await res.json();
                 setChats(data);
@@ -47,19 +49,36 @@ export function ChatProvider({ children, channelId = null }: { children: ReactNo
         }
     };
 
-    useEffect(() => { fetchChats(); }, []);
+    useEffect(() => { 
+        setActiveChatId(null);
+        setChats([]);
+        setMessages([]);
+        setIsLoadingChats(true);
+        fetchChats(); 
+    }, [channelId]);
 
     // ── Fetch Messages on Active Chat Change ────────────────────────────────
     useEffect(() => {
         if (!activeChatId) { setMessages([]); return; }
-        if (skipFetchRef.current) {
-            skipFetchRef.current = false;
-            return;
-        }
+        
+        let isStale = false;
         fetch(`/api/chat/${activeChatId}/messages`)
             .then(r => r.ok ? r.json() : [])
-            .then(data => setMessages(data))
+            .then(data => {
+                if (!isStale) {
+                    setMessages(prev => {
+                        // If we are actively generating and have optimistic local messages, don't wipe them out
+                        // with an empty or smaller array from the DB, as the DB might be lagging behind the stream.
+                        if (prev.length > 0 && prev[0].chatId === activeChatId && data.length < prev.length) {
+                            return prev;
+                        }
+                        return data;
+                    });
+                }
+            })
             .catch(console.error);
+            
+        return () => { isStale = true; };
     }, [activeChatId]);
 
     // ── Create New Chat ─────────────────────────────────────────────────────
@@ -67,7 +86,7 @@ export function ChatProvider({ children, channelId = null }: { children: ReactNo
         const res = await fetch("/api/chat", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ title }),
+            body: JSON.stringify({ title, channelId }),
         });
         if (res.ok) {
             const newChat = await res.json();
@@ -139,7 +158,16 @@ export function ChatProvider({ children, channelId = null }: { children: ReactNo
             files.forEach(f => formData.append("files", f));
 
             const res = await fetch("/api/aurabot", { method: "POST", body: formData, signal: ac.signal });
+            if (!res.ok) {
+                if (res.status === 402) {
+                    throw new Error("Insufficient AI Credits. Please upgrade your plan.");
+                }
+                throw new Error(`AuraBot error: ${res.status}`);
+            }
             if (!res.body) return;
+
+            // Deduct 1 credit locally for UI update
+            window.dispatchEvent(new CustomEvent("credit-update", { detail: { deduct: 1 } }));
 
             const reader = res.body.getReader();
             const decoder = new TextDecoder();
@@ -155,7 +183,7 @@ export function ChatProvider({ children, channelId = null }: { children: ReactNo
         } catch (e: any) {
             if (e.name !== "AbortError") {
                 setMessages(prev => prev.map(m =>
-                    m.id === aiMsgId ? { ...m, content: "Error: AuraBot disconnected. Please try again." } : m
+                    m.id === aiMsgId ? { ...m, content: `Error: ${e.message || "AuraBot disconnected. Please try again."}` } : m
                 ));
             }
         } finally {
@@ -173,7 +201,7 @@ export function ChatProvider({ children, channelId = null }: { children: ReactNo
             const res = await fetch("/api/chat", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ title: content.slice(0, 40) + "..." }),
+                body: JSON.stringify({ title: content.slice(0, 40) + "...", channelId }),
             });
             if (!res.ok) return;
             const newChat = await res.json();
@@ -200,7 +228,7 @@ export function ChatProvider({ children, channelId = null }: { children: ReactNo
             const res = await fetch("/api/chat", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ title }),
+                body: JSON.stringify({ title, channelId }),
             });
             if (!res.ok) return;
             const newChat = await res.json();
@@ -222,7 +250,7 @@ export function ChatProvider({ children, channelId = null }: { children: ReactNo
         const res = await fetch("/api/chat", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ title }),
+            body: JSON.stringify({ title, channelId }),
         });
         if (!res.ok) return;
         const newChat = await res.json();
@@ -238,7 +266,7 @@ export function ChatProvider({ children, channelId = null }: { children: ReactNo
 
     return (
         <ChatContext.Provider value={{
-            chats, activeChatId, messages, isLoadingChats, isGenerating, channelId: channelId ?? null,
+            chats, activeChatId, activeChat: chats.find(c => c.id === activeChatId) || null, messages, isLoadingChats, isGenerating, channelId: channelId ?? null,
             setActiveChatId, createNewChat, createChatAndSend, deleteChat,
             sendMessage, sendMessageWithFiles, stopGenerating, fetchChats,
         }}>

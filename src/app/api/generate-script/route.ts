@@ -2,17 +2,17 @@ import { streamText } from 'ai';
 import { createGroq } from '@ai-sdk/groq';
 import { createBotMessage, getChannelById, getChannelScans } from '@/db/queries';
 import { auth } from '@/auth';
-import { getUserByEmail, getChannelsByUserId } from '@/db/queries';
+import { getUserByEmail, getChannelsByUserId, deductUserCredits } from '@/db/queries';
 import type { GapItem, ScanAnalytics } from '@/db/schema';
 
 // Allow streaming responses up to 60 seconds
-export const maxDuration = 60;
+export const maxDuration = 60; // Vercel Hobby plan max for streaming/Next.js config
 
 
 // ─── Build Channel-Aware System Prompt ───────────────────────────────────────
 
 async function buildChannelAwarePrompt(channelId?: string, userId?: string): Promise<string> {
-    const basePrompt = `You are AuraIQ — an expert YouTube scriptwriter, growth strategist, and content analyst. You specialize in crafting highly engaging, fast-paced, and retention-optimized scripts for creators. Do not include introductory fluff; get straight into the answer or script.`;
+    const basePrompt = `You are GapTuber AI — an expert YouTube scriptwriter, growth strategist, and content analyst. You specialize in crafting highly engaging, fast-paced, and retention-optimized scripts for creators. Do not include introductory fluff; get straight into the answer or script.`;
 
     if (!channelId && !userId) return basePrompt;
 
@@ -108,6 +108,21 @@ CHANNEL CONTEXT — You are assisting the creator of this specific channel:
 
 export async function POST(req: Request) {
     try {
+        // Auth guard — prevents unauthenticated Groq quota drain
+        const session = await auth();
+        if (!session?.user?.email) {
+            return new Response('Unauthorized', { status: 401 });
+        }
+
+        const user = await getUserByEmail(session.user.email);
+        if (!user) {
+            return new Response('User not found', { status: 404 });
+        }
+
+        if (user.credits < 2) {
+            return new Response('Insufficient credits. Please upgrade your plan.', { status: 403 });
+        }
+
         const { prompt, chatId, channelId } = await req.json();
 
         if (!prompt) {
@@ -155,6 +170,9 @@ export async function POST(req: Request) {
                         console.error("Failed to save AI message to DB:", err);
                     }
                 }
+                
+                // Deduct 2 credits for script generation
+                await deductUserCredits(user.id, 2, "Script Generation");
             }
         });
 

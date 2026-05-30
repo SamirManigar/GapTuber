@@ -46,6 +46,7 @@ export default function ScriptModal({ idea, onClose }: { idea: VideoIdea, onClos
                     return [{ role: "assistant", content: last.content + chunk }];
                 });
             }
+            window.dispatchEvent(new CustomEvent("credit-update", { detail: { deduct: 2 } }));
         } catch (error) {
             console.error("Failed to generate script:", error);
             setMessages([{ role: "assistant", content: "Error generating script. Please try again." }]);
@@ -101,7 +102,7 @@ export default function ScriptModal({ idea, onClose }: { idea: VideoIdea, onClos
                         {messages.length === 0 && (
                             <div className="flex flex-col items-center justify-center h-40 text-gray-400">
                                 <Loader2 className="w-8 h-8 animate-spin mb-4 text-emerald-500" />
-                                <p>Initializing AuraIQ AI Engine...</p>
+                                <p>Initializing GapTuber AI Engine...</p>
                             </div>
                         )}
                         
@@ -116,7 +117,7 @@ export default function ScriptModal({ idea, onClose }: { idea: VideoIdea, onClos
                         {isLoading && messages.length > 0 && (
                             <div className="flex items-center gap-2 text-emerald-400 text-sm font-medium mt-4">
                                 <Loader2 className="w-4 h-4 animate-spin" />
-                                <span>AuraIQ is writing...</span>
+                                <span>GapTuber AI is writing...</span>
                             </div>
                         )}
                     </div>
@@ -125,7 +126,7 @@ export default function ScriptModal({ idea, onClose }: { idea: VideoIdea, onClos
                     <div className="p-6 border-t border-gray-800 bg-[#131415] flex items-center justify-between">
                         <div className="text-xs text-gray-500 flex items-center gap-2">
                            <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                           AuraIQ AI Engine connected
+                           GapTuber AI Engine connected
                         </div>
                         <div className="flex gap-3">
                             <button 

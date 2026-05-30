@@ -17,7 +17,7 @@ export const AnalyzeRequestSchema = z.object({
             tags: z.array(z.string()).optional(),
             description: z.string().optional(),
         })
-    ).min(1).max(100),
+    ).max(100).optional(),
     comments: z.array(
         z.object({
             text: z.string().max(500),
@@ -25,7 +25,7 @@ export const AnalyzeRequestSchema = z.object({
             likeCount: z.number().optional(),
             authorName: z.string().optional(),
         })
-    ).max(200),
+    ).max(200).optional(),
     searchResults: z.array(
         z.object({
             title: z.string(),
@@ -35,7 +35,7 @@ export const AnalyzeRequestSchema = z.object({
             uploadDate: z.string(),
             subscriberCount: z.number().optional(),
         })
-    ).max(30),
+    ).max(30).optional(),
 });
 
 export type AnalyzeRequest = z.infer<typeof AnalyzeRequestSchema>;
@@ -46,16 +46,14 @@ export const GapItemSchema = z.object({
     gapScore: z.number().min(0).max(10),
     reasoning: z.string().min(10).max(1500),
     hook: z.string().min(5).max(500),
+    suggestedTitle: z.string().min(5).max(200).optional(),
     format: z.string().min(3).max(300),
     monetizationAngle: z.string().min(5).max(500),
     targetAudience: z.string().min(5).max(300).optional(),
-    contentOutline: z.array(z.string()).max(8).optional(),
-    seoTips: z.array(z.string()).max(5).optional(),
-    competitorWeakness: z.string().max(500).optional(),
 });
 
 export const GapOutputSchema = z.object({
-    gaps: z.array(GapItemSchema).min(1).max(5),
+    gaps: z.array(GapItemSchema).min(1).max(3),
     overallOpportunity: z.string().max(500).optional(),
     recommendedNiche: z.string().max(200).optional(),
 });

@@ -1,17 +1,26 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createGroq } from "@ai-sdk/groq";
 import { generateText } from "ai";
+import { z } from "zod";
+import { auth } from "@/auth";
 import {
     computeMarketIntelligence,
     generateOptimalTags,
     type VideoData,
     type SearchResult,
-    type CommentData,
 } from "@/lib/engine/scoring";
+import { getCorsHeaders } from "@/lib/cors";
+import { rateLimit, RATE_LIMITS } from "@/lib/rate-limit";
+import { logger } from "@/lib/logger";
 
-export const maxDuration = 60;
+export const maxDuration = 300; // Fluid Compute: 5 minute max on Vercel Hobby plan
 
 const YT_BASE = "https://www.googleapis.com/youtube/v3";
+
+const RequestSchema = z.object({
+    category: z.string().min(1).max(50).default("general"),
+    topic: z.string().min(2).max(150).trim(),
+});
 
 // ─── YouTube Search for Market Data ──────────────────────────────────────────
 
@@ -40,84 +49,56 @@ async function searchYouTubeForTopic(
     const videoIds = (searchData.items ?? []).map(item => item.id.videoId);
     if (videoIds.length === 0) return { videos: [], searchResults: [] };
 
-    // Step 2: Get full video stats
+    // Step 2: Get full video stats and channel IDs
     const statsUrl = `${YT_BASE}/videos?part=snippet,statistics,contentDetails&id=${videoIds.join(",")}&key=${apiKey}`;
     const statsRes = await fetch(statsUrl);
 
-    if (!statsRes.ok) {
-        return { videos: [], searchResults: [] };
-    }
+    if (!statsRes.ok) return { videos: [], searchResults: [] };
 
     const statsData = await statsRes.json() as {
         items?: Array<{
             id: string;
-            snippet: { title: string; channelTitle: string; publishedAt: string; tags?: string[]; description?: string };
+            snippet: { title: string; channelId: string; channelTitle: string; publishedAt: string; description?: string; tags?: string[] };
             statistics: { viewCount?: string; likeCount?: string; commentCount?: string };
             contentDetails: { duration?: string };
         }>;
     };
 
-    const videos: VideoData[] = [];
-    const searchResults: SearchResult[] = [];
-
-    for (const item of (statsData.items ?? [])) {
-        const views = parseInt(item.statistics.viewCount ?? "0");
-        const likes = parseInt(item.statistics.likeCount ?? "0");
-        const comments = parseInt(item.statistics.commentCount ?? "0");
-
-        videos.push({
-            title: item.snippet.title,
-            views,
-            likes,
-            comments,
-            uploadDate: item.snippet.publishedAt,
-            url: `https://youtube.com/watch?v=${item.id}`,
-            channel: item.snippet.channelTitle,
-            duration: item.contentDetails.duration,
-            tags: item.snippet.tags,
-            description: item.snippet.description?.slice(0, 200),
-        });
-
-        searchResults.push({
-            title: item.snippet.title,
-            channel: item.snippet.channelTitle,
-            views,
-            likes,
-            uploadDate: item.snippet.publishedAt,
+    const channelIds = Array.from(new Set((statsData.items ?? []).map(item => item.snippet.channelId)));
+    
+    // Step 3: Get channel stats (subscriber count) for outliers detection
+    const channelUrl = `${YT_BASE}/channels?part=statistics&id=${channelIds.join(",")}&key=${apiKey}`;
+    const channelRes = await fetch(channelUrl);
+    const channelStatsMap: Record<string, number> = {};
+    
+    if (channelRes.ok) {
+        const channelData = await channelRes.json();
+        (channelData.items || []).forEach((c: any) => {
+            channelStatsMap[c.id] = parseInt(c.statistics?.subscriberCount || "0");
         });
     }
 
-    // Step 3: Try to get channel subscriber counts for competition analysis
-    const uniqueChannels = [...new Set(videos.map(v => v.channel))];
-    try {
-        const channelSearchUrl = `${YT_BASE}/search?part=snippet&q=${encodeURIComponent(topic)}&type=channel&maxResults=10&key=${apiKey}`;
-        const channelRes = await fetch(channelSearchUrl);
-        if (channelRes.ok) {
-            const channelData = await channelRes.json() as {
-                items?: Array<{ id: { channelId: string }; snippet: { title: string } }>;
-            };
-            const channelIds = (channelData.items ?? []).map(c => c.id.channelId);
-            if (channelIds.length > 0) {
-                const channelStatsUrl = `${YT_BASE}/channels?part=statistics&id=${channelIds.join(",")}&key=${apiKey}`;
-                const channelStatsRes = await fetch(channelStatsUrl);
-                if (channelStatsRes.ok) {
-                    const csData = await channelStatsRes.json() as {
-                        items?: Array<{
-                            snippet?: { title: string };
-                            statistics: { subscriberCount?: string };
-                        }>;
-                    };
-                    const subCounts = (csData.items ?? []).map(c => parseInt(c.statistics.subscriberCount ?? "0"));
-                    // Assign subscriber counts to matching search results
-                    for (let i = 0; i < Math.min(searchResults.length, subCounts.length); i++) {
-                        searchResults[i].subscriberCount = subCounts[i] || 0;
-                    }
-                }
-            }
-        }
-    } catch {
-        // Non-critical: competition analysis still works without exact sub counts
-    }
+    const videos: VideoData[] = (statsData.items ?? []).map(item => ({
+        title: item.snippet.title,
+        views: parseInt(item.statistics.viewCount || "0"),
+        likes: parseInt(item.statistics.likeCount || "0"),
+        comments: parseInt(item.statistics.commentCount || "0"),
+        uploadDate: item.snippet.publishedAt,
+        url: `https://youtube.com/watch?v=${item.id}`,
+        channel: item.snippet.channelTitle,
+        duration: item.contentDetails.duration || "PT0S",
+        tags: item.snippet.tags,
+        description: item.snippet.description?.slice(0, 200),
+    }));
+
+    const searchResults: SearchResult[] = (statsData.items ?? []).map(item => ({
+        title: item.snippet.title,
+        channel: item.snippet.channelTitle,
+        views: parseInt(item.statistics.viewCount || "0"),
+        likes: parseInt(item.statistics.likeCount || "0"),
+        uploadDate: item.snippet.publishedAt,
+        subscriberCount: channelStatsMap[item.snippet.channelId] ?? 0,
+    }));
 
     return { videos, searchResults };
 }
@@ -125,35 +106,73 @@ async function searchYouTubeForTopic(
 // ─── POST Handler ─────────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
+    const cors = getCorsHeaders(req);
     try {
-        const body = await req.json() as { category?: string; topic?: string };
-        const { category = "general", topic = "" } = body;
-
-        if (!topic || topic.length < 2) {
-            return NextResponse.json({ error: "Topic is required (min 2 chars)" }, { status: 400 });
+        // ── Auth guard ────────────────────────────────────────────────────────
+        const session = await auth();
+        if (!session?.user?.email) {
+            return NextResponse.json({ error: "Unauthorized" }, { status: 401, headers: cors });
         }
 
-        const apiKey = process.env.YOUTUBE_API_KEY;
-        
-        const hasGroqKey = process.env.GROQ_API_KEY || process.env.GROQ_API_KEY_2 || process.env.GROQ_API_KEY_3;
+        // ── Input validation ─────────────────────────────────────────────────
+        let body: unknown;
+        try { body = await req.json(); } catch {
+            return NextResponse.json({ error: "Invalid JSON" }, { status: 400, headers: cors });
+        }
 
+        const parsed = RequestSchema.safeParse(body);
+        if (!parsed.success) {
+            return NextResponse.json({ error: "Invalid input", details: parsed.error.flatten() }, { status: 400, headers: cors });
+        }
+
+        const { category, topic } = parsed.data;
+
+        // ── Rate limiting ───────────────────────────────────────────────────
+        const { max, windowMs } = RATE_LIMITS.channelCreation;
+        const rl = await rateLimit(`channel-creation:${session.user.email}`, max, windowMs);
+        if (!rl.allowed) {
+            return NextResponse.json(
+                { error: `Rate limit exceeded. You can run ${max} analyses per hour. Try again in ${Math.ceil(rl.resetMs / 60000)} min.` },
+                { status: 429, headers: { ...cors, "Retry-After": String(Math.ceil(rl.resetMs / 1000)) } }
+            );
+        }
+
+        const youtubeKeys = [
+            process.env.YOUTUBE_API_KEY,
+            process.env.YOUTUBE_API_KEY_2,
+            process.env.YOUTUBE_API_KEY_3,
+        ].filter(Boolean) as string[];
+
+        const hasGroqKey = process.env.GROQ_API_KEY || process.env.GROQ_API_KEY_2 || process.env.GROQ_API_KEY_3;
         if (!hasGroqKey) {
-            console.error("[Channel Creation] 503 Error: No Groq API Keys configured in environment variables.");
-            return NextResponse.json({ error: "AI service not configured (Missing Groq Keys)" }, { status: 503 });
+            return NextResponse.json({ error: "AI service not configured" }, { status: 503, headers: cors });
         }
 
         // ── Step 1: Fetch YouTube market data ────────────────────────────────
         let videos: VideoData[] = [];
         let searchResults: SearchResult[] = [];
 
-        if (apiKey) {
-            try {
-                const ytData = await searchYouTubeForTopic(apiKey, `${topic} ${category}`, 25);
-                videos = ytData.videos;
-                searchResults = ytData.searchResults;
-            } catch (err) {
-                console.warn("[Channel Creation] YouTube API error, proceeding with AI only:", err);
+        if (youtubeKeys.length > 0) {
+            const shuffledKeys = [...youtubeKeys].sort(() => Math.random() - 0.5);
+            for (const activeKey of shuffledKeys) {
+                try {
+                    const ytData = await searchYouTubeForTopic(activeKey, `${topic} ${category}`, 25);
+                    videos = ytData.videos;
+                    searchResults = ytData.searchResults;
+                    if (videos.length > 0) break; // Success
+                } catch (err) {
+                    if (err instanceof Error && err.message === "QUOTA_EXCEEDED") {
+                        logger.warn("[Channel Creation] YouTube Quota Exceeded for a key, trying next...");
+                        continue;
+                    }
+                    logger.warn("[Channel Creation] YouTube API error for a key, rotating:", err);
+                }
             }
+        }
+
+        // Final fallback log if all keys failed
+        if (youtubeKeys.length > 0 && videos.length === 0) {
+            logger.error("[Channel Creation] ALL YouTube API keys failed or exhausted. Proceeding with AI-only mode.");
         }
 
         // ── Step 2: Compute market intelligence ──────────────────────────────
@@ -280,13 +299,12 @@ RESPOND WITH ONLY THIS JSON:
                 break; // If successful, exit the retry loop
             } catch (aiErr: any) {
                 lastError = aiErr;
-                console.warn("[Key Rotation] Key failed or rate-limited, trying next...");
+                logger.warn("[Key Rotation] Key failed or rate-limited, trying next...");
             }
         }
 
         if (!success) {
-            console.error("[Channel Creation AI Error] All keys exhausted.", lastError);
-            return NextResponse.json({ error: "AI service temporarily unavailable (Rate limit). Please try again later." }, { status: 503 });
+            return NextResponse.json({ error: "AI temporarily unavailable. Please try again." }, { status: 503, headers: cors });
         }
 
         // ── Step 5: Parse AI response ────────────────────────────────────────
@@ -311,8 +329,7 @@ RESPOND WITH ONLY THIS JSON:
             if (start === -1 || end <= start) throw new Error("No JSON found");
             aiOutput = JSON.parse(rawText.slice(start, end + 1));
         } catch {
-            console.error("[Channel Creation Parse Error]", rawText.slice(0, 500));
-            return NextResponse.json({ error: "AI response format error. Please retry." }, { status: 502 });
+            return NextResponse.json({ error: "AI response format error. Please retry." }, { status: 502, headers: cors });
         }
 
         // ── Step 6: Assemble response ────────────────────────────────────────
@@ -339,6 +356,8 @@ RESPOND WITH ONLY THIS JSON:
                 trendingKeywords: market.trendingKeywords,
                 bestSubNiches: market.bestSubNiches,
                 overallVerdict: market.overallVerdict,
+                outlierVideos: market.outlierVideos,
+                optimalUploadSchedule: market.optimalUploadSchedule,
             },
             estimatedFirstYearViews: market.estimatedFirstYearViews,
             revenueEstimate: market.revenueEstimate,
@@ -349,7 +368,7 @@ RESPOND WITH ONLY THIS JSON:
         });
 
     } catch (err) {
-        console.error("[CHANNEL_CREATION_ERROR]", err);
+        logger.error("[CHANNEL_CREATION_ERROR]", err);
         return NextResponse.json({ error: "Failed to generate channel blueprint." }, { status: 500 });
     }
 }

@@ -6,8 +6,9 @@ import remarkGfm from "remark-gfm";
 import rehypeRaw from "rehype-raw";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
-import { Bot, User, Copy, Check, ThumbsUp, ThumbsDown, RefreshCw, FileText, Sparkles } from "lucide-react";
+import { Bot, User, Copy, Check, ThumbsUp, ThumbsDown, RefreshCw, FileText, Sparkles, Library } from "lucide-react";
 import type { BotMessage } from "@/db/schema";
+import { useChat } from "@/app/bot/context";
 
 // ─── Code Block with Copy ────────────────────────────────────────────────────
 const CodeBlock = memo(({ language, code }: { language: string; code: string }) => {
@@ -111,7 +112,10 @@ interface ChatBubbleProps {
 export function EnhancedChatBubble({ message, onRegenerate }: ChatBubbleProps) {
     const isAI = message.sender === "ai";
     const [copied, setCopied] = useState(false);
+    const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
+    const [errorMessage, setErrorMessage] = useState("");
     const [feedback, setFeedback] = useState<"up" | "down" | null>(null);
+    const { channelId, activeChat } = useChat();
 
     // Extract attachment markers
     let displayText = message.content;
@@ -129,6 +133,36 @@ export function EnhancedChatBubble({ message, onRegenerate }: ChatBubbleProps) {
         });
     }, [displayText]);
 
+    const handleSaveToVault = async () => {
+        if (!channelId || saveStatus !== "idle") return;
+        setSaveStatus("saving");
+        try {
+            const res = await fetch(`/api/channels/${channelId}/ideas`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    script: displayText,
+                    attachToIdeaTitle: activeChat?.title,
+                }),
+            });
+            if (!res.ok) {
+                const data = await res.json();
+                if (data.error === "idea not save in vault") {
+                    setErrorMessage("Idea not saved in vault");
+                    setSaveStatus("error");
+                    setTimeout(() => { setSaveStatus("idle"); setErrorMessage(""); }, 3000);
+                    return;
+                }
+                throw new Error("Failed");
+            }
+            setSaveStatus("saved");
+        } catch (e) {
+            console.error(e);
+            setSaveStatus("error");
+            setTimeout(() => setSaveStatus("idle"), 3000);
+        }
+    };
+
     return (
         <div className={`flex gap-3 px-5 py-4 ${isAI ? "bg-[#13141a] border-y border-white/[0.04]" : ""}`}>
             {/* Avatar */}
@@ -140,7 +174,7 @@ export function EnhancedChatBubble({ message, onRegenerate }: ChatBubbleProps) {
 
             {/* Message Body */}
             <div className="flex-1 min-w-0">
-                <div className="text-xs font-semibold mb-1.5 text-slate-500">{isAI ? "AuraIQ" : "You"}</div>
+                <div className="text-xs font-semibold mb-1.5 text-slate-500">{isAI ? "GapTuber AI" : "You"}</div>
 
                 {/* Attached files display */}
                 {attachedFiles.length > 0 && (
@@ -161,7 +195,7 @@ export function EnhancedChatBubble({ message, onRegenerate }: ChatBubbleProps) {
                     </div>
                 ) : (
                     (() => {
-                        const scriptMatch = displayText.match(/Write a full, highly-detailed YouTube script for a (.*?) video titled: "(.*?)"/);
+                        const scriptMatch = displayText.match(/Write a (?:full, highly-detailed|comprehensive, professionally-structured) YouTube script for a (.*?) video titled: "(.*?)"/);
                         if (scriptMatch) {
                             return (
                                 <div className="bg-gradient-to-br from-emerald-500/10 to-indigo-500/5 border border-emerald-500/20 rounded-xl p-4 my-2">
@@ -201,6 +235,12 @@ export function EnhancedChatBubble({ message, onRegenerate }: ChatBubbleProps) {
                                 <RefreshCw className="w-4 h-4" />
                             </button>
                         )}
+                        <button onClick={handleSaveToVault} disabled={saveStatus !== "idle"} className={`p-1.5 rounded-lg flex items-center gap-1.5 transition-colors ${saveStatus === "saved" ? "text-emerald-400 bg-emerald-400/10" : saveStatus === "error" ? "text-red-400 bg-red-400/10" : "text-slate-500 hover:text-white hover:bg-white/5"}`} title="Save Script to Vault">
+                            {saveStatus === "saved" ? <Check className="w-4 h-4" /> : <Library className="w-4 h-4" />}
+                            <span className="text-[10px] font-mono uppercase font-bold">
+                                {saveStatus === "saving" ? "Saving..." : saveStatus === "saved" ? "Script Saved" : saveStatus === "error" ? errorMessage || "Error" : "Save Script"}
+                            </span>
+                        </button>
                         <div className="flex-1" />
                         <button
                             onClick={() => setFeedback("up")}

@@ -1,27 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createGroq } from "@ai-sdk/groq";
-import { generateObject } from "ai";
+import { generateText } from "ai";
 import { z } from "zod";
 import { auth } from "@/auth";
 import { decode } from "next-auth/jwt";
 import { db } from "@/db";
 import { scans } from "@/db/schema";
-import { getUserByEmail } from "@/db/queries";
+import { getUserByEmail, deductUserCredits } from "@/db/queries";
+import { resolveUserFromRequest } from "@/lib/resolve-user";
+import { getCorsHeaders } from "@/lib/cors";
+import { rateLimit, RATE_LIMITS } from "@/lib/rate-limit";
+import { logger } from "@/lib/logger";
+import { env } from "@/env";
 
-export const runtime = "edge";
+// nodejs runtime required: in-memory rate limiting needs persistent state across requests
+export const runtime = "nodejs";
+export const maxDuration = 300; // Fluid Compute: 5 minute max on Vercel Hobby plan
 
-
-// ─── CORS ──────────────────────────────────────────────────────────────────────
-
-function getCorsHeaders(req: NextRequest): Record<string, string> {
-    const origin = req.headers.get("origin") ?? "*";
-    return {
-        "Access-Control-Allow-Origin": origin,
-        "Access-Control-Allow-Credentials": "true",
-        "Access-Control-Allow-Methods": "POST, OPTIONS",
-        "Access-Control-Allow-Headers": "Content-Type, X-Session-Token",
-    };
-}
 
 export async function OPTIONS(req: NextRequest) {
     return new NextResponse(null, { status: 204, headers: getCorsHeaders(req) });
@@ -74,12 +69,29 @@ async function resolveUserEmail(req: NextRequest): Promise<string | null> {
     ];
     for (const salt of salts) {
         try {
-            const decoded = await decode({ token: headerToken, secret: process.env.AUTH_SECRET!, salt });
+            const decoded = await decode({ token: headerToken, secret: env.AUTH_SECRET!, salt });
             if (decoded?.email) return decoded.email as string;
         } catch { /* try next salt */ }
     }
     return null;
 }
+
+// ─── Request Body Schema ───────────────────────────────────────────────────────
+
+const RequestBodySchema = z.object({
+    keyword: z.string().min(1).max(200).default("youtube"),
+    videoTitle: z.string().max(500).default("Unknown Video"),
+    comments: z
+        .array(
+            z.object({
+                text: z.string().max(1000),
+                likeCount: z.number().int().min(0).optional(),
+            })
+        )
+        .min(1)
+        .max(500),
+    channelId: z.string().uuid().optional().or(z.literal("")).transform(v => v || undefined),
+});
 
 // ─── POST Handler ──────────────────────────────────────────────────────────────
 
@@ -87,14 +99,45 @@ export async function POST(req: NextRequest) {
     const corsHeaders = getCorsHeaders(req);
 
     try {
-        const body = await req.json() as {
-            keyword?: string;
-            videoTitle?: string;
-            comments?: Array<{ text: string; likeCount?: number }>;
-            channelId?: string;
-        };
+        let rawBody: unknown;
+        try {
+            rawBody = await req.json();
+        } catch {
+            return NextResponse.json({ success: false, error: "Invalid JSON body." }, { status: 400, headers: corsHeaders });
+        }
 
-        const { keyword = "youtube", videoTitle = "Unknown Video", comments = [], channelId = "" } = body;
+        const parsed = RequestBodySchema.safeParse(rawBody);
+        if (!parsed.success) {
+            return NextResponse.json(
+                { success: false, error: "Invalid request", details: parsed.error.flatten() },
+                { status: 400, headers: corsHeaders }
+            );
+        }
+
+        const { keyword, videoTitle, comments, channelId = "" } = parsed.data;
+
+        // ── Auth & Credit Check ──
+        const dbUser = await resolveUserFromRequest(req);
+        if (!dbUser) {
+            return NextResponse.json({ success: false, error: "Unauthorized", message: "Please log in to the extension." }, { status: 401, headers: corsHeaders });
+        }
+        if (dbUser.credits < 1) {
+            return NextResponse.json({ success: false, error: "Insufficient credits", message: "You need at least 1 credit to analyze." }, { status: 402, headers: corsHeaders });
+        }
+
+        // Rate limit by user email (if authenticated) or by IP
+        const userEmail = dbUser.email;
+        const rateLimitKey = userEmail
+            ? `gap-scanner:${userEmail}`
+            : `gap-scanner:ip:${req.headers.get("x-forwarded-for") ?? "unknown"}`;
+        const { max, windowMs } = RATE_LIMITS.gapScanner;
+        const rl = await rateLimit(rateLimitKey, max, windowMs);
+        if (!rl.allowed) {
+            return NextResponse.json(
+                { success: false, error: `Rate limit: max ${max} scans/hour. Retry in ${Math.ceil(rl.resetMs / 60000)} min.` },
+                { status: 429, headers: corsHeaders }
+            );
+        }
 
         if (!comments.length) {
             return NextResponse.json(
@@ -104,10 +147,13 @@ export async function POST(req: NextRequest) {
         }
 
         const keys = [
-            process.env.GROQ_API_KEY,
-            process.env.GROQ_API_KEY_2,
-            process.env.GROQ_API_KEY_3
+            env.GROQ_API_KEY,
+            env.GROQ_API_KEY_2,
+            env.GROQ_API_KEY_3
         ].filter(Boolean) as string[];
+
+        // Deduct 1 credit for analysis
+        await deductUserCredits(dbUser.id, 1, "Extension Search Scanner");
 
         if (keys.length === 0) {
             return NextResponse.json(
@@ -122,6 +168,20 @@ export async function POST(req: NextRequest) {
             .sort((a, b) => (b.likeCount ?? 0) - (a.likeCount ?? 0))
             .slice(0, 35);
 
+        // ── Deterministic frustration pre-scoring ─────────────────────────────
+        // Count comments containing frustration/question signals — no AI guessing
+        const frustrationPatterns = [
+            /\b(why|how|what|when|does|can|could|should|would|is there|isn't|doesn't|won't|can't|didn't|not working|broken|wrong|problem|issue|error|bug|help|confused|lost|unclear|missing|where|still|nobody|anyone)\b/i,
+            /\?/,
+            /\b(please|fix|need|want|wish|hope|would love|any way|alternative|instead)\b/i,
+        ];
+        const frustratedCount = sorted.filter(c =>
+            frustrationPatterns.some(p => p.test(c.text))
+        ).length;
+        const deterministicFrustrationRate = sorted.length > 0
+            ? Math.round((frustratedCount / sorted.length) * 100)
+            : 0;
+
         const commentText = sorted
             .map((c, i) => `${i + 1}. [${c.likeCount ?? 0} likes] "${c.text}"`)
             .join("\n");
@@ -132,6 +192,7 @@ Analyze the following viewer comments from a YouTube video to find HIGH-VALUE co
 
 TARGET KEYWORD: "${keyword}"
 VIDEO ANALYZED: "${videoTitle}"
+DETERMINISTIC FRUSTRATION SCORE: ${deterministicFrustrationRate}% (pre-computed from ${sorted.length} comments — use this exact number for frustrationRate, do NOT estimate your own)
 
 TOP VIEWER COMMENTS (sorted by likes — higher likes = more viewers agree):
 ${commentText}
@@ -151,10 +212,11 @@ Based on these real viewer frustrations, generate exactly 4 specific, high-conve
 For overallOpportunity, write a single compelling sentence summarizing what huge opportunity exists in this comment section.
 
 For commentInsights:
-- totalAnalyzed: number of comments you reviewed
-- frustrationRate: estimated % of comments expressing frustration or unanswered questions (0-100)
-- topPainPoints: top 5 pain points from comments (short phrases)
+- totalAnalyzed: ${sorted.length} (exact — do not change)
+- frustrationRate: ${deterministicFrustrationRate} (exact — do not change, already computed)
+- topPainPoints: top 5 pain points from comments (short phrases, directly quoted or closely paraphrased)
 - topQuestions: top 5 questions viewers asked that weren't answered`;
+
 
         let object: any = null;
         let success = false;
@@ -165,29 +227,41 @@ For commentInsights:
         for (const activeKey of shuffledKeys) {
             try {
                 const groq = createGroq({ apiKey: activeKey });
-                const result = await generateObject({
+                const result = await generateText({
                     model: groq("llama-3.3-70b-versatile"),
-                    schema: ResponseSchema,
-                    prompt,
+                    messages: [
+                        { role: "system", content: "You must output ONLY valid JSON that strictly matches the required schema. No markdown fences, no explanatory text." },
+                        { role: "user", content: prompt + `\n\nREQUIRED JSON SCHEMA:\n${JSON.stringify({ success: true, keyword: "string", gaps: [{ title: "string", gapScore: "number", reasoning: "string", hook: "string", format: "string", monetizationAngle: "string", targetAudience: "string", competitorWeakness: "string", contentOutline: ["string"], seoTips: ["string"] }], overallOpportunity: "string", commentInsights: { totalAnalyzed: "number", frustrationRate: "number", topPainPoints: ["string"], topQuestions: ["string"] } }, null, 2)}` }
+                    ],
                     temperature: 0.4,
                 });
-                object = result.object;
+                
+                let rawText = result.text.trim();
+                const start = rawText.indexOf("{");
+                const end = rawText.lastIndexOf("}");
+                if (start !== -1 && end !== -1) {
+                    rawText = rawText.slice(start, end + 1);
+                } else {
+                    rawText = rawText.replace(/```json|```/g, "").trim();
+                }
+                
+                object = JSON.parse(rawText);
                 success = true;
                 break;
             } catch (aiErr: any) {
                 lastError = aiErr;
-                console.warn("[Key Rotation GapScanner] Key failed, trying next...");
+                logger.warn("[Key Rotation GapScanner] Key failed, trying next...");
             }
         }
 
         if (!success || !object) {
-            console.error("[Gap Scanner AI Error] All keys exhausted.", lastError);
+            logger.error("[Gap Scanner AI Error] All keys exhausted.", lastError);
             return NextResponse.json({ success: false, error: "AI service temporarily unavailable (Rate limit)." }, { status: 503, headers: corsHeaders });
         }
 
         // ── Persist to DB (non-blocking, fire-and-forget) ───────────────────────
         try {
-            const userEmail = await resolveUserEmail(req);
+            // Issue #3: reuse already-resolved userEmail, no second resolveUserEmail() call
             if (userEmail) {
                 const user = await getUserByEmail(userEmail);
                 if (user) {
@@ -218,13 +292,13 @@ For commentInsights:
                             },
                             analytics: null,       // no channel analytics for comment mining
                         });
-                        console.log(`[GapScanner] Saved ${object.gaps.length} gaps for ${userEmail} — "${keyword}" on channel ${targetChannelId}`);
+                        logger.info(`[GapScanner] Saved ${object.gaps.length} gaps for ${userEmail} — "${keyword}" on channel ${targetChannelId}`);
                     }
                 }
             }
         } catch (dbErr) {
             // Non-blocking — user still sees results even if DB save fails
-            console.error("[GapScanner DB Error]", dbErr);
+            logger.error("[GapScanner DB Error]", dbErr);
         }
 
         return NextResponse.json(
@@ -233,7 +307,7 @@ For commentInsights:
         );
 
     } catch (err) {
-        console.error("[GAP_SCANNER_ERROR]", err);
+        logger.error("[GAP_SCANNER_ERROR]", err);
         return NextResponse.json(
             { success: false, error: "Failed to analyze comments." },
             { status: 500, headers: corsHeaders }

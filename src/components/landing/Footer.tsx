@@ -27,9 +27,15 @@ export default function Footer() {
                 {/* Links */}
                 <div className="flex flex-wrap gap-x-6 gap-y-2">
                     {LINKS.map(l => (
-                        <Link key={l.href} href={l.href} className="text-xs text-zinc-600 hover:text-zinc-400 transition-colors">
-                            {l.label}
-                        </Link>
+                        l.href.startsWith('#') || l.href.startsWith('mailto:') ? (
+                            <a key={l.href} href={l.href} className="text-xs text-zinc-600 hover:text-zinc-400 transition-colors">
+                                {l.label}
+                            </a>
+                        ) : (
+                            <Link key={l.href} href={l.href} className="text-xs text-zinc-600 hover:text-zinc-400 transition-colors">
+                                {l.label}
+                            </Link>
+                        )
                     ))}
                 </div>
             </div>

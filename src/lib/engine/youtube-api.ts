@@ -4,6 +4,9 @@
  * No DOM scraping — structured, reliable, paginated data
  */
 
+import { cacheData } from "../cache";
+import { env } from "@/env";
+
 const YT_BASE = "https://www.googleapis.com/youtube/v3";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -27,6 +30,7 @@ export interface YouTubeChannelInfo {
     subscriberCount: number;
     totalVideoCount: number;
     description: string;
+    thumbnail: string;
 }
 
 // ─── Step 1: Resolve channel info + uploads playlist ID ──────────────────────
@@ -35,52 +39,59 @@ export async function resolveChannel(
     apiKey: string,
     channelUrl: string
 ): Promise<YouTubeChannelInfo> {
-    // Extract handle or channel ID from URL
-    const handle = channelUrl.match(/\/@([A-Za-z0-9_.\-]+)/)?.[1];
-    const channelId = channelUrl.match(/\/channel\/([A-Za-z0-9_\-]+)/)?.[1];
-    const legacyName = channelUrl.match(/\/c\/([A-Za-z0-9_\-]+)/)?.[1];
+    const cacheKey = `yt:resolve:${channelUrl}`;
+    return cacheData(cacheKey, async () => {
+        // Extract handle or channel ID from URL
+        const handle = channelUrl.match(/\/@([A-Za-z0-9_.\-]+)/)?.[1];
+        const channelId = channelUrl.match(/\/channel\/([A-Za-z0-9_\-]+)/)?.[1];
+        const legacyName = channelUrl.match(/\/(?:c|user)\/([A-Za-z0-9_\-]+)/)?.[1];
+        const bareName = channelUrl.match(/youtube\.com\/([A-Za-z0-9_\-]+)\/?$/)?.[1];
 
-    let query: string;
-    if (handle) {
-        query = `forHandle=%40${encodeURIComponent(handle)}`;
-    } else if (channelId) {
-        query = `id=${channelId}`;
-    } else if (legacyName) {
-        query = `forUsername=${encodeURIComponent(legacyName)}`;
-    } else {
-        throw new Error("Could not parse channel URL: " + channelUrl);
-    }
+        let query: string;
+        if (handle) {
+            query = `forHandle=%40${encodeURIComponent(handle)}`;
+        } else if (channelId) {
+            query = `id=${channelId}`;
+        } else if (legacyName) {
+            query = `forUsername=${encodeURIComponent(legacyName)}`;
+        } else if (bareName && !["watch", "feed", "results", "shorts"].includes(bareName.toLowerCase())) {
+            query = `forHandle=%40${encodeURIComponent(bareName)}`;
+        } else {
+            throw new Error("Could not parse channel URL: " + channelUrl);
+        }
 
-    const url = `${YT_BASE}/channels?part=snippet,contentDetails,statistics&${query}&key=${apiKey}`;
-    const res = await fetch(url);
+        const url = `${YT_BASE}/channels?part=snippet,contentDetails,statistics&${query}&key=${apiKey}`;
+        const res = await fetch(url);
 
-    if (!res.ok) {
-        const err = await res.json() as { error?: { message: string; code: number } };
-        if (err.error?.code === 403) throw new Error("QUOTA_EXCEEDED");
-        throw new Error(`YouTube API error: ${err.error?.message ?? res.statusText}`);
-    }
+        if (!res.ok) {
+            const err = await res.json() as { error?: { message: string; code: number } };
+            if (err.error?.code === 403) throw new Error("QUOTA_EXCEEDED");
+            throw new Error(`YouTube API error: ${err.error?.message ?? res.statusText}`);
+        }
 
-    const data = await res.json() as {
-        items?: Array<{
-            id: string;
-            snippet: { title: string; description: string; customUrl?: string };
-            contentDetails: { relatedPlaylists: { uploads: string } };
-            statistics: { subscriberCount?: string; videoCount?: string };
-        }>;
-    };
+        const data = await res.json() as {
+            items?: Array<{
+                id: string;
+                snippet: { title: string; description: string; customUrl?: string; thumbnails?: { default?: { url: string } } };
+                contentDetails: { relatedPlaylists: { uploads: string } };
+                statistics: { subscriberCount?: string; videoCount?: string };
+            }>;
+        };
 
-    const ch = data.items?.[0];
-    if (!ch) throw new Error("Channel not found. Check the URL is correct.");
+        const ch = data.items?.[0];
+        if (!ch) throw new Error("Channel not found. Check the URL is correct.");
 
-    return {
-        channelId: ch.id,
-        channelName: ch.snippet.title,
-        handle: ch.snippet.customUrl ?? handle ?? channelId ?? "unknown",
-        uploadsPlaylistId: ch.contentDetails.relatedPlaylists.uploads,
-        subscriberCount: parseInt(ch.statistics.subscriberCount ?? "0"),
-        totalVideoCount: parseInt(ch.statistics.videoCount ?? "0"),
-        description: ch.snippet.description.slice(0, 500),
-    };
+        return {
+            channelId: ch.id,
+            channelName: ch.snippet.title,
+            handle: ch.snippet.customUrl ?? handle ?? channelId ?? "unknown",
+            uploadsPlaylistId: ch.contentDetails.relatedPlaylists.uploads,
+            subscriberCount: parseInt(ch.statistics.subscriberCount ?? "0"),
+            totalVideoCount: parseInt(ch.statistics.videoCount ?? "0"),
+            description: ch.snippet.description.slice(0, 500),
+            thumbnail: ch.snippet.thumbnails?.default?.url || "",
+        };
+    }, 86400); // 24 hour cache for channel info
 }
 
 // ─── Step 2: Paginate through all video IDs in uploads playlist ───────────────
@@ -170,14 +181,17 @@ export async function fetchFullChannelData(
     channelUrl: string,
     maxVideos = 100
 ): Promise<{ channelInfo: YouTubeChannelInfo; videos: YouTubeVideo[] }> {
-    const channelInfo = await resolveChannel(apiKey, channelUrl);
-    const videoIds = await getAllVideoIds(apiKey, channelInfo.uploadsPlaylistId, maxVideos);
-    const videos = await getVideoStats(apiKey, videoIds, channelInfo.channelName);
+    const cacheKey = `yt:fullChannel:${channelUrl}:${maxVideos}`;
+    return cacheData(cacheKey, async () => {
+        const channelInfo = await resolveChannel(apiKey, channelUrl);
+        const videoIds = await getAllVideoIds(apiKey, channelInfo.uploadsPlaylistId, maxVideos);
+        const videos = await getVideoStats(apiKey, videoIds, channelInfo.channelName);
 
-    // Sort newest first
-    videos.sort((a, b) => new Date(b.uploadDate).getTime() - new Date(a.uploadDate).getTime());
+        // Sort newest first
+        videos.sort((a, b) => new Date(b.uploadDate).getTime() - new Date(a.uploadDate).getTime());
 
-    return { channelInfo, videos };
+        return { channelInfo, videos };
+    }, 7200); // 2 hour cache for full channel history
 }
 
 // ─── Quota cost estimator ─────────────────────────────────────────────────────

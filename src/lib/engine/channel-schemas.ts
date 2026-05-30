@@ -36,9 +36,9 @@ export type Competitor = z.infer<typeof CompetitorSchema>;
 
 export const ContentClusterSchema = z.object({
     clusterName: z.string().min(2),
-    channelPresence: z.number().min(0).max(100),
-    trendingAcceleration: z.number().min(0).max(100),
-    opportunityIndex: z.number().min(0).max(100),
+    channelPresence: z.number().min(0).max(100).optional().default(0),
+    trendingAcceleration: z.number().min(0).max(100).optional().default(0),
+    opportunityIndex: z.number().min(0).max(100).optional().default(0),
     insight: z.string().min(5).optional().default("Emerging opportunity in this cluster."),
     suggestedVideoIdeas: z.array(z.string()).max(3).optional(),
 });

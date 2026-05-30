@@ -9,6 +9,7 @@ export interface VideoData {
     uploadDate: string;
     url: string;
     channel: string;
+    subscriberCount?: number; // Tier 1A: for virality ratio
     duration?: string;
     tags?: string[];
     description?: string;
@@ -160,20 +161,31 @@ export function computeVelocityScore(videos: VideoData[]): {
     insight: string;
     topVideos: VideoData[];
     weeklyGrowthRate: number;
+    avgViralityRatio: number;
 } {
-    if (videos.length === 0) return { score: 0, insight: "No videos found", topVideos: [], weeklyGrowthRate: 0 };
+    if (videos.length === 0) return { score: 0, insight: "No videos found", topVideos: [], weeklyGrowthRate: 0, avgViralityRatio: 0 };
 
     const withDecayedVelocity = videos.map(v => {
         const days = daysSince(v.uploadDate);
         const rawVelocity = v.views / days;
         const decayWeight = exponentialDecayWeight(days, 60);
-        return { ...v, velocity: rawVelocity, decayedVelocity: rawVelocity * decayWeight, days };
+        // Tier 1A: subscriber-normalised virality ratio
+        const viralityRatio = v.subscriberCount && v.subscriberCount > 0
+            ? v.views / v.subscriberCount
+            : 0;
+        return { ...v, velocity: rawVelocity, decayedVelocity: rawVelocity * decayWeight, days, viralityRatio };
     });
 
     withDecayedVelocity.sort((a, b) => b.decayedVelocity - a.decayedVelocity);
 
     const maxDecayedVelocity = withDecayedVelocity[0].decayedVelocity;
     const avgVelocity = withDecayedVelocity.reduce((s, v) => s + v.velocity, 0) / withDecayedVelocity.length;
+
+    // Tier 1A: average virality ratio across all videos
+    const avgViralityRatio = withDecayedVelocity.reduce((s, v) => s + v.viralityRatio, 0) / withDecayedVelocity.length;
+    // Boost score for outlier content (videos outperforming their subscriber base)
+    // ratio > 3 = video got 3x more views than subscribers = algo-pushed outlier
+    const viralityBonus = Math.min(2.5, avgViralityRatio / 2);
 
     // Compute weekly growth rate using EMA on sorted-by-date views
     const sortedByDate = [...withDecayedVelocity].sort((a, b) =>
@@ -186,13 +198,17 @@ export function computeVelocityScore(videos: VideoData[]): {
     const lastEma30 = ema30[ema30.length - 1] ?? 1;
     const weeklyGrowthRate = lastEma30 > 0 ? ((lastEma7 - lastEma30) / lastEma30) * 100 : 0;
 
-    // Normalize: benchmark is 1000 views/day = score 5, 10000 = score 10
-    const score = Math.min(10, Math.log10(Math.max(1, maxDecayedVelocity)) * 2.5);
+    // Normalize: benchmark is 10K views/day = score 5, 100K views/day = score 8, 1M+/day → ~10
+    // Previous: log10(x)*2.5 → popular channels always hit 10 (log10(1M)*2.5=15 → capped)
+    // New: log10(x)*1.8 → 1M/day gives log10(1M)*1.8=10.8→capped at 10 (much less saturating)
+    const baseScore = Math.min(10, Math.log10(Math.max(1, maxDecayedVelocity)) * 1.8);
+    const score = Math.min(10, baseScore + viralityBonus);
 
     const topVideos = withDecayedVelocity.slice(0, 5);
-    const insight = `Top video: ${Math.round(withDecayedVelocity[0].velocity).toLocaleString()} views/day. Avg: ${Math.round(avgVelocity).toLocaleString()} views/day. Weekly trend: ${weeklyGrowthRate > 0 ? "+" : ""}${weeklyGrowthRate.toFixed(1)}%`;
+    const viralNote = avgViralityRatio > 3 ? ` 🔥 Outlier signal: avg ${avgViralityRatio.toFixed(1)}x views/subscribers.` : "";
+    const insight = `Top video: ${Math.round(withDecayedVelocity[0].velocity).toLocaleString()} views/day. Avg: ${Math.round(avgVelocity).toLocaleString()} views/day. Weekly trend: ${weeklyGrowthRate > 0 ? "+" : ""}${weeklyGrowthRate.toFixed(1)}%.${viralNote}`;
 
-    return { score, insight, topVideos, weeklyGrowthRate };
+    return { score, insight, topVideos, weeklyGrowthRate, avgViralityRatio };
 }
 
 /**
@@ -215,11 +231,13 @@ export function computeSaturationScore(searchResults: SearchResult[]): {
     ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
 
     const recentUploads = searchResults.filter(r => {
-        try { return new Date(r.uploadDate) >= thirtyDaysAgo; } catch { return false; }
+        const d = new Date(r.uploadDate);
+        return !isNaN(d.getTime()) && d >= thirtyDaysAgo;
     });
 
     const last90Days = searchResults.filter(r => {
-        try { return new Date(r.uploadDate) >= ninetyDaysAgo; } catch { return false; }
+        const d = new Date(r.uploadDate);
+        return !isNaN(d.getTime()) && d >= ninetyDaysAgo;
     });
 
     // Channel diversity: fewer unique channels = less competition
@@ -245,7 +263,7 @@ export function computeSaturationScore(searchResults: SearchResult[]): {
     if (avgSubscribers > 1_000_000) score -= 2;
     else if (avgSubscribers > 100_000) score -= 1;
 
-    score = Math.min(10, Math.max(0, score));
+    score = Math.min(10, Math.max(1, score));
 
     const competitionLevel: "Low" | "Medium" | "High" | "Very High" =
         score >= 7 ? "Low" : score >= 5 ? "Medium" : score >= 3 ? "High" : "Very High";
@@ -264,10 +282,11 @@ export function computeFrustrationScore(comments: CommentData[]): {
     score: number;
     topKeywords: string[];
     painPoints: string[];
+    verbatimQuestions: string[]; // Tier 1B: high-liked unanswered questions
     sentimentBreakdown: { frustrated: number; neutral: number; positive: number };
 } {
     if (comments.length === 0) {
-        return { score: 0, topKeywords: [], painPoints: [], sentimentBreakdown: { frustrated: 0, neutral: 0, positive: 0 } };
+        return { score: 0, topKeywords: [], painPoints: [], verbatimQuestions: [], sentimentBreakdown: { frustrated: 0, neutral: 0, positive: 0 } };
     }
 
     const wordFreq = new Map<string, number>();
@@ -277,32 +296,59 @@ export function computeFrustrationScore(comments: CommentData[]): {
 
     const POSITIVE_PHRASES = ["great", "amazing", "perfect", "excellent", "helpful", "thanks", "love", "best"];
 
+    // Tier 1B: implicit frustration signals
+    const shortComments = comments.filter(c => c.text.trim().split(/\s+/).length <= 5);
+    const questionComments = comments.filter(c => c.text.includes("?"));
+
+    // Lower threshold for small comment sets: >=2 likes or any question on <30 comments
+    const likeThreshold = comments.length < 30 ? 2 : 5;
+    const highLikedQuestions = questionComments
+        .filter(c => (c.likeCount ?? 0) >= likeThreshold)
+        .sort((a, b) => (b.likeCount ?? 0) - (a.likeCount ?? 0));
+
+    // verbatimQuestions: short phrase extractions only — never full raw comments as pain point tags
+    // Extract the first question clause (up to first "?") trimmed to 60 chars max
+    const verbatimQuestions = highLikedQuestions
+        .slice(0, 5)
+        .map(c => {
+            const raw = c.text.trim();
+            const questionEnd = raw.indexOf("?");
+            const clause = questionEnd !== -1 ? raw.substring(0, questionEnd + 1) : raw;
+            // Strip to core phrase — remove leading filler words and cap at 60 chars
+            return clause.replace(/^(hi|hey|hello|please|can you|could you|would you)[,\s]*/i, "").substring(0, 60).trim();
+        })
+        .filter(q => q.length > 5); // drop empty extractions
+
+    // Implicit frustration boost: many short/question comments = disengagement signal
+    const shortRatio = comments.length > 0 ? shortComments.length / comments.length : 0;
+    // Scale implicit boost for small datasets (< 30 comments) but cap the multiplier
+    // at 1.3× (was 1.8×) to prevent overcorrection to 10/10
+    const dataScaleMultiplier = comments.length < 30 ? 1.3 : 1.0;
+    // Hard cap implicitBoost at 1.5 so it can't dominate the final score alone
+    const implicitBoost = Math.min(1.5, ((shortRatio * 2) + (highLikedQuestions.length * 0.5)) * dataScaleMultiplier);
+
     for (const comment of comments) {
         const text = comment.text.toLowerCase();
         const weight = comment.likeCount ? Math.log(1 + comment.likeCount) : 1;
 
-        // Count ALL matching phrases, not just the first
-        let matchCount = 0;
+        let matchedFrustration = false;
         for (const phrase of FRUSTRATION_PHRASES) {
             if (text.includes(phrase)) {
-                frustrationHits += weight;
-                matchCount++;
+                if (!matchedFrustration) {
+                    frustrationHits += weight;
+                    matchedFrustration = true;
+                }
                 painPointsMap.set(phrase, (painPointsMap.get(phrase) ?? 0) + weight);
             }
         }
-        // Only flag as frustrated if at least one phrase matched
-        const isFrustrated = matchCount > 0;
 
-        let isPositive = false;
         for (const phrase of POSITIVE_PHRASES) {
             if (text.includes(phrase)) {
                 positiveHits += weight;
-                isPositive = true;
                 break;
             }
         }
 
-        void isFrustrated; void isPositive; // suppress unused warnings
 
         const words = text
             .replace(/[^a-z0-9\s]/g, " ")
@@ -319,28 +365,44 @@ export function computeFrustrationScore(comments: CommentData[]): {
         .slice(0, 15)
         .map(([word]) => word);
 
+    // Pain points: ONLY matched FRUSTRATION_PHRASES (short phrase keys), no raw verbatim text
     const topPainPoints = [...painPointsMap.entries()]
         .sort((a, b) => b[1] - a[1])
-        .slice(0, 5)
+        .slice(0, 6)
         .map(([phrase]) => phrase);
 
+    // Count matched comments (unweighted) — used for the small-set formula
+    // CRITICAL: frustrationHits is weighted by likes, so 1 viral comment with 500 likes
+    // contributes 6.2× as much. Dividing by total comments inflates the ratio badly.
+    // Solution: count distinct matched comments (boolean, not weighted) for small sets.
+    let matchedCommentCount = 0;
+    for (const comment of comments) {
+        const text = comment.text.toLowerCase();
+        if (FRUSTRATION_PHRASES.some(p => text.includes(p))) matchedCommentCount++;
+    }
+
     const total = comments.length;
-    // Normalize by total weighted possible, not raw count
     const totalWeight = comments.reduce((s, c) => s + (c.likeCount ? Math.log(1 + c.likeCount) : 1), 0);
     const frustrationRatio = totalWeight > 0 ? frustrationHits / totalWeight : 0;
     const positiveRatio = totalWeight > 0 ? positiveHits / totalWeight : 0;
 
-    // Wilson score for reliability with corrected normalization
-    const reliableScore = wilsonScoreLowerBound(Math.round(frustrationHits), Math.max(total, 1)) * 10;
-    const score = Math.min(10, Math.max(0, reliableScore + frustrationRatio * 5));
+    // For small sets: use UNWEIGHTED match rate (matched comments / total comments)
+    // This prevents 1 viral comment from inflating score to 10/10
+    const reliableScore = comments.length < 30
+        ? (matchedCommentCount / Math.max(total, 1)) * 10   // unweighted: e.g. 4/29*10 = 1.38
+        : wilsonScoreLowerBound(Math.round(frustrationHits), Math.max(total, 1)) * 10;
+    // Use frustrationRatio × 1.5 for small sets (reduced from × 2) to further prevent ceiling lock
+    const frustrationRatioMultiplier = comments.length < 30 ? 1.5 : 5;
+    const score = Math.min(10, Math.max(0, reliableScore + frustrationRatio * frustrationRatioMultiplier + implicitBoost));
 
     return {
         score,
         topKeywords: sorted,
         painPoints: topPainPoints,
+        verbatimQuestions,
         sentimentBreakdown: {
             frustrated: Math.round(frustrationRatio * 100),
-            neutral: Math.round((1 - frustrationRatio - positiveRatio) * 100),
+            neutral: Math.round(Math.max(0, 1 - frustrationRatio - positiveRatio) * 100),
             positive: Math.round(positiveRatio * 100),
         },
     };
@@ -363,10 +425,12 @@ export function computeAbandonmentScore(videos: VideoData[]): {
 
     const highPerformingVideos = videos.filter(v => v.views > 50000);
     const recentVideos = videos.filter(v => {
-        try { return new Date(v.uploadDate) >= thirtyDaysAgo; } catch { return false; }
+        const d = new Date(v.uploadDate);
+        return !isNaN(d.getTime()) && d >= thirtyDaysAgo;
     });
     const last90Videos = videos.filter(v => {
-        try { return new Date(v.uploadDate) >= ninetyDaysAgo; } catch { return false; }
+        const d = new Date(v.uploadDate);
+        return !isNaN(d.getTime()) && d >= ninetyDaysAgo;
     });
 
     // Compute upload gap: days between most recent and second most recent
@@ -746,78 +810,131 @@ export function buildGapCandidates(input: ScoringInput): GapCandidate[] {
         confidence,
     };
 
-    const candidates: GapCandidate[] = [
-        {
-            title: `Complete ${keyword} Tutorial for Beginners (2026 Updated)`,
-            angle: "beginner_explainer",
-            scores: { ...baseScores, compositeScore: roundedComposite },
-            topFrustrationKeywords: topFrustrations,
-            velocityInsight: velocity.insight,
-            saturationInsight: saturation.insight,
-            trendInsight: trendMomentum.insight,
-            competitionInsight: competition.insight,
-            suggestedTags,
-            estimatedViews,
-            bestUploadDay: schedule.bestDay,
-            bestUploadHour: schedule.bestHour,
+    // Tier 1C: Score-driven dynamic angle selection with per-candidate signal weighting
+    // Each angle has signal bonuses so scores genuinely differ based on which signals fired
+    type AngleConfig = {
+        title: string;
+        angle: string;
+        // Per-signal weight overrides for this angle's composite calculation
+        // Angles that match the dominant signal get a higher composite
+        signalWeights: {
+            velocity: number; frustration: number; saturation: number;
+            trend: number; competition: number; abandonment: number;
+        };
+    };
+
+    const ALL_ANGLES: AngleConfig[] = [];
+
+    // Abandoned niche revival — best when supply gap is the key signal
+    if (baseScores.abandonmentScore >= 6) {
+        ALL_ANGLES.push({
+            title: `The ${keyword} Guide Nobody Is Making in 2026 (Finally Updated)`,
+            angle: "abandoned_niche_revival",
+            signalWeights: { velocity: 0.15, frustration: 0.15, saturation: 0.15, trend: 0.15, competition: 0.10, abandonment: 0.30 },
+        });
+    }
+
+    // Problem-solution — best when frustration is the key signal
+    if (baseScores.frustrationScore >= 3) {
+        ALL_ANGLES.push({
+            title: `Stop Struggling With ${keyword}: The Fix That Actually Works`,
+            angle: "problem_solution",
+            signalWeights: { velocity: 0.15, frustration: 0.35, saturation: 0.15, trend: 0.10, competition: 0.10, abandonment: 0.15 },
+        });
+        ALL_ANGLES.push({
+            title: `Everyone Gets ${keyword} Wrong — Here's What They Miss`,
+            angle: "contrarian_correction",
+            signalWeights: { velocity: 0.20, frustration: 0.25, saturation: 0.20, trend: 0.10, competition: 0.15, abandonment: 0.10 },
+        });
+    }
+
+    // Trend capitalizer — best when velocity + momentum are the key signals
+    if (baseScores.velocityScore >= 6 || baseScores.trendMomentum >= 6) {
+        ALL_ANGLES.push({
+            title: `Why Everyone Is Suddenly Talking About ${keyword} (Full Breakdown)`,
+            angle: "trend_capitalizer",
+            signalWeights: { velocity: 0.35, frustration: 0.10, saturation: 0.10, trend: 0.30, competition: 0.10, abandonment: 0.05 },
+        });
+    }
+
+    // Accelerating trend explainer
+    if (trendMomentum.trend === "accelerating") {
+        ALL_ANGLES.push({
+            title: `The Real Reason ${keyword} Is Exploding Right Now`,
+            angle: "trend_explainer",
+            signalWeights: { velocity: 0.25, frustration: 0.10, saturation: 0.15, trend: 0.35, competition: 0.10, abandonment: 0.05 },
+        });
+    }
+
+    // Easy win — best when competition is low (high competition score = easy)
+    if (baseScores.competitionScore >= 7) {
+        ALL_ANGLES.push({
+            title: `${keyword} for Complete Beginners: Zero to Confident in One Video`,
+            angle: "underserved_beginner",
+            signalWeights: { velocity: 0.20, frustration: 0.10, saturation: 0.10, trend: 0.10, competition: 0.40, abandonment: 0.10 },
+        });
+    }
+
+    // Exhaustive test — best when market is saturated (low saturation score = hard market)
+    if (baseScores.saturationScore <= 4) {
+        ALL_ANGLES.push({
+            title: `I Tested Every ${keyword} Method So You Don't Have To`,
+            angle: "exhaustive_test",
+            signalWeights: { velocity: 0.20, frustration: 0.20, saturation: 0.35, trend: 0.10, competition: 0.10, abandonment: 0.05 },
+        });
+    }
+
+    // Always include comparison + mistakes + beginner fallbacks
+    ALL_ANGLES.push({
+        title: `${keyword} vs The Alternatives: Honest 2026 Comparison`,
+        angle: "comparison",
+        signalWeights: { velocity: 0.20, frustration: 0.15, saturation: 0.25, trend: 0.15, competition: 0.15, abandonment: 0.10 },
+    });
+    ALL_ANGLES.push({
+        title: `The ${keyword} Mistakes Nobody Warns You About (With Real Data)`,
+        angle: "mistakes_avoidance",
+        signalWeights: { velocity: 0.20, frustration: 0.30, saturation: 0.15, trend: 0.10, competition: 0.15, abandonment: 0.10 },
+    });
+    ALL_ANGLES.push({
+        title: `Complete ${keyword} Roadmap for Beginners (Step by Step, 2026)`,
+        angle: "beginner_explainer",
+        signalWeights: { velocity: 0.25, frustration: 0.15, saturation: 0.20, trend: 0.15, competition: 0.15, abandonment: 0.10 },
+    });
+
+    // Compute per-candidate composite scores using their signal weights
+    // This ensures genuinely different scores based on which signal each angle amplifies
+    const scoredAngles = ALL_ANGLES.map(a => {
+        const w = a.signalWeights;
+        const perAngleComposite =
+            velocity.score       * w.velocity +
+            frustration.score    * w.frustration +
+            saturation.score     * w.saturation +
+            trendMomentum.score  * w.trend +
+            competition.score    * w.competition +
+            abandonment.score    * w.abandonment;
+        return { ...a, perAngleComposite: Math.round(perAngleComposite * 10) / 10 };
+    });
+
+    // Sort by per-angle composite DESC so the best matching angle is always Gap #1
+    scoredAngles.sort((a, b) => b.perAngleComposite - a.perAngleComposite);
+
+    const candidates: GapCandidate[] = scoredAngles.slice(0, 5).map(a => ({
+        title: a.title,
+        angle: a.angle,
+        scores: {
+            ...baseScores,
+            compositeScore: Math.min(10, Math.max(0, a.perAngleComposite)),
         },
-        {
-            title: `Why Most ${keyword} Tutorials Fail (And What Actually Works)`,
-            angle: "contrarian_critique",
-            scores: { ...baseScores, compositeScore: Math.max(0, roundedComposite - 0.3) },
-            topFrustrationKeywords: topFrustrations,
-            velocityInsight: velocity.insight,
-            saturationInsight: saturation.insight,
-            trendInsight: trendMomentum.insight,
-            competitionInsight: competition.insight,
-            suggestedTags,
-            estimatedViews,
-            bestUploadDay: schedule.bestDay,
-            bestUploadHour: schedule.bestHour,
-        },
-        {
-            title: `${keyword} in 2026: The Complete Practical Guide`,
-            angle: "practical_guide",
-            scores: { ...baseScores, compositeScore: Math.max(0, roundedComposite - 0.5) },
-            topFrustrationKeywords: topFrustrations,
-            velocityInsight: velocity.insight,
-            saturationInsight: saturation.insight,
-            trendInsight: trendMomentum.insight,
-            competitionInsight: competition.insight,
-            suggestedTags,
-            estimatedViews,
-            bestUploadDay: schedule.bestDay,
-            bestUploadHour: schedule.bestHour,
-        },
-        {
-            title: `${keyword} Mistakes Beginners Make (And How to Fix Them)`,
-            angle: "mistakes_avoidance",
-            scores: { ...baseScores, compositeScore: Math.max(0, roundedComposite - 0.7) },
-            topFrustrationKeywords: topFrustrations,
-            velocityInsight: velocity.insight,
-            saturationInsight: saturation.insight,
-            trendInsight: trendMomentum.insight,
-            competitionInsight: competition.insight,
-            suggestedTags,
-            estimatedViews,
-            bestUploadDay: schedule.bestDay,
-            bestUploadHour: schedule.bestHour,
-        },
-        {
-            title: `${keyword} vs Alternatives: Which Should You Use in 2026?`,
-            angle: "comparison",
-            scores: { ...baseScores, compositeScore: Math.max(0, roundedComposite - 0.9) },
-            topFrustrationKeywords: topFrustrations,
-            velocityInsight: velocity.insight,
-            saturationInsight: saturation.insight,
-            trendInsight: trendMomentum.insight,
-            competitionInsight: competition.insight,
-            suggestedTags,
-            estimatedViews,
-            bestUploadDay: schedule.bestDay,
-            bestUploadHour: schedule.bestHour,
-        },
-    ];
+        topFrustrationKeywords: topFrustrations,
+        velocityInsight: velocity.insight,
+        saturationInsight: saturation.insight,
+        trendInsight: trendMomentum.insight,
+        competitionInsight: competition.insight,
+        suggestedTags,
+        estimatedViews,
+        bestUploadDay: schedule.bestDay,
+        bestUploadHour: schedule.bestHour,
+    }));
 
     return candidates;
 }
@@ -844,6 +961,8 @@ export interface MarketIntelligence {
     trendInsight: string;
     competitionInsight: string;
     overallVerdict: string;
+    outlierVideos: SearchResult[]; // "Virality Gaps": small channels with massive views
+    optimalUploadSchedule: { bestDay: string; bestHour: number; insight: string };
 }
 
 /**
@@ -974,5 +1093,9 @@ export function computeMarketIntelligence(
         trendInsight: trend.insight,
         competitionInsight: competition.insight,
         overallVerdict,
+        outlierVideos: searchResults.filter(r => 
+            r.subscriberCount && r.subscriberCount < 100000 && r.views > r.subscriberCount * 5
+        ).sort((a, b) => (b.views / (b.subscriberCount || 1)) - (a.views / (a.subscriberCount || 1))).slice(0, 5),
+        optimalUploadSchedule: schedule,
     };
 }

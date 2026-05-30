@@ -14,6 +14,32 @@
   box-sizing: border-box;
 }
 
+/* ===== MODERN SCROLLBAR ===== */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0c0c0e;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #1e1e22;
+  border-radius: 10px;
+  border: 2px solid #0c0c0e;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #2a2a30;
+}
+
+/* Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #1e1e22 #0c0c0e;
+}
+
 html {
   scroll-behavior: smooth;
 }
@@ -33,49 +59,120 @@ body {
 
 /* ===== SUBTLE FADE IN ===== */
 @keyframes fadeUp {
-  from { opacity: 0; transform: translateY(12px); }
-  to   { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
-.fade-up           { animation: fadeUp 0.5s ease-out forwards; }
-.fade-up-1         { animation: fadeUp 0.5s ease-out 0.1s forwards; opacity: 0; }
-.fade-up-2         { animation: fadeUp 0.5s ease-out 0.2s forwards; opacity: 0; }
-.fade-up-3         { animation: fadeUp 0.5s ease-out 0.35s forwards; opacity: 0; }
+
+.fade-up {
+  animation: fadeUp 0.5s ease-out forwards;
+}
+
+.fade-up-1 {
+  animation: fadeUp 0.5s ease-out 0.1s forwards;
+  opacity: 0;
+}
+
+.fade-up-2 {
+  animation: fadeUp 0.5s ease-out 0.2s forwards;
+  opacity: 0;
+}
+
+.fade-up-3 {
+  animation: fadeUp 0.5s ease-out 0.35s forwards;
+  opacity: 0;
+}
 
 /* Legacy aliases  (used in dashboard etc.) */
-.animate-fade-in         { animation: fadeUp 0.5s ease-out forwards; }
-.animate-fade-in-delay   { animation: fadeUp 0.5s ease-out 0.1s forwards; opacity: 0; }
-.animate-fade-in-delay-2 { animation: fadeUp 0.5s ease-out 0.2s forwards; opacity: 0; }
-.animate-fade-in-delay-3 { animation: fadeUp 0.5s ease-out 0.35s forwards; opacity: 0; }
+.animate-fade-in {
+  animation: fadeUp 0.5s ease-out forwards;
+}
+
+.animate-fade-in-delay {
+  animation: fadeUp 0.5s ease-out 0.1s forwards;
+  opacity: 0;
+}
+
+.animate-fade-in-delay-2 {
+  animation: fadeUp 0.5s ease-out 0.2s forwards;
+  opacity: 0;
+}
+
+.animate-fade-in-delay-3 {
+  animation: fadeUp 0.5s ease-out 0.35s forwards;
+  opacity: 0;
+}
 
 /* ===== RADAR DOT (used in dashboard badge) ===== */
 @keyframes radar-pulse {
-  0%, 100% { transform: scale(1); opacity: 1; }
-  50%       { transform: scale(1.5); opacity: 0.4; }
+
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+
+  50% {
+    transform: scale(1.5);
+    opacity: 0.4;
+  }
 }
-.radar-dot { animation: radar-pulse 2s ease-in-out infinite; }
+
+.radar-dot {
+  animation: radar-pulse 2s ease-in-out infinite;
+}
 
 /* ===== SCORE COLORS (dashboard) ===== */
-.score-high        { color: #8b5cf6; }
-.score-medium-high { color: #818cf8; }
-.score-medium      { color: #f59e0b; }
-.score-low         { color: #6b7280; }
+.score-high {
+  color: #8b5cf6;
+}
+
+.score-medium-high {
+  color: #818cf8;
+}
+
+.score-medium {
+  color: #f59e0b;
+}
+
+.score-low {
+  color: #6b7280;
+}
 
 /* ===== SLIDE UP (dashboard) ===== */
 @keyframes slide-up {
-  from { opacity: 0; transform: translateY(30px); }
-  to   { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
-.animate-slide-up { animation: slide-up 0.5s ease-out forwards; }
+
+.animate-slide-up {
+  animation: slide-up 0.5s ease-out forwards;
+}
 
 /* ===== GLASS (kept for dashboard compatibility) ===== */
 .glass {
-  background: rgba(255,255,255,0.03);
+  background: rgba(255, 255, 255, 0.03);
   border: 1px solid #1e1e22;
 }
+
 .glass-purple {
   background: rgba(139, 92, 246, 0.06);
   border: 1px solid rgba(139, 92, 246, 0.18);
 }
+
 .glow-purple {
   box-shadow: 0 0 20px rgba(139, 92, 246, 0.25);
 }
@@ -83,16 +180,32 @@ body {
 /* ===== GRADIENT BORDER (dashboard cards) ===== */
 .gradient-border {
   position: relative;
-  background: rgba(12,12,14,0.9);
+  background: rgba(12, 12, 14, 0.9);
   border-radius: 12px;
   border: 1px solid #1e1e22;
 }
 
 /* ===== SCROLL ANCHOR OFFSET ===== */
-[id] { scroll-margin-top: 80px; }
+[id] {
+  scroll-margin-top: 80px;
+}
 
 /* ===== SELECTION ===== */
 ::selection {
-  background: rgba(139,92,246,0.3);
+  background: rgba(139, 92, 246, 0.3);
   color: white;
+}
+
+/* ===== LIGHT MODE (Invert Technique) ===== */
+.light-mode {
+  filter: invert(1) hue-rotate(180deg);
+  background-color: #0c0c0e;
+  /* Original background so it inverts to light */
+}
+
+.light-mode img,
+.light-mode video,
+.light-mode svg.no-invert,
+.light-mode .no-invert {
+  filter: invert(1) hue-rotate(180deg);
 }

@@ -22,7 +22,7 @@ function SignInContent() {
                 <div className="text-center mb-8">
                     <Link href="/" className="inline-flex flex-col items-center gap-1">
                         <div className="flex items-center gap-2.5">
-                            <img src="/auraiq-logo.png" alt="GapTuber Logo" className="w-10 h-10 object-contain" />
+                            <img src="/logo.svg" alt="GapTuber Logo" className="w-10 h-10 object-contain" />
                             <span className="text-2xl font-extrabold text-white">GapTuber</span>
                         </div>
                         <span className="text-xs text-gray-600 font-medium tracking-wider">by AurionStack</span>

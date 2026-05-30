@@ -39,3 +39,12 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# logs — never commit these
+*.log
+errors.log
+ts-errors.txt
+
+# one-time utility scripts — keep out of repo
+crop.js
+fix_logo.js

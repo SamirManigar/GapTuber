@@ -31,7 +31,7 @@ export function ChatInput() {
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
                     onKeyDown={handleKeyDown}
-                    placeholder="Ask AuraIQ for a video idea, script, or hook..."
+                    placeholder="Ask GapTuber AI for a video idea, script, or hook..."
                     className="flex-1 max-h-48 min-h-[44px] bg-transparent text-white placeholder-slate-500 resize-none outline-none py-3 px-3 text-sm"
                     rows={1}
                 />
@@ -44,7 +44,7 @@ export function ChatInput() {
                 </button>
             </div>
             <div className="text-center mt-3 text-xs text-slate-500 font-medium">
-                AuraIQ Bot can make mistakes. Consider verifying important information.
+                AuraBot can make mistakes. Consider verifying important information.
             </div>
         </form>
     );
