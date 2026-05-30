@@ -71,10 +71,11 @@ export default function Hero() {
                             variants={fadeUp}
                             initial="hidden"
                             animate="visible"
-                            className="text-5xl sm:text-6xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-white via-zinc-200 to-zinc-500 leading-[1.05] tracking-tight mb-6"
+                            className="text-[2.75rem] sm:text-5xl font-extrabold text-white leading-[1.12] tracking-tight mb-6"
                         >
-                            Find the content gap.<br />
-                            <span className="text-white">Before they do.</span>
+                            Find the{" "}
+                            <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-emerald-200">gap</span>
+                            {" "}before your<br />competitors do.
                         </motion.h1>
 
                         <motion.p
