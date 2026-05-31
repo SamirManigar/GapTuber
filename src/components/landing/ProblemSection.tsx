@@ -12,10 +12,10 @@ const BEFORE = [
 ];
 
 const AFTER = [
-    { icon: Zap, color: "text-amber-500", bg: "bg-amber-500/10", label: "Velocity detection", desc: "Find channels gaining momentum before they peak." },
-    { icon: Pickaxe, color: "text-rose-400", bg: "bg-rose-500/10", label: "Frustration mining", desc: "AI analysis of comments to find what viewers hate about existing content." },
-    { icon: Target, color: "text-blue-500", bg: "bg-blue-500/10", label: "Gap scoring engine", desc: "7 signals combined into a mathematical Heat Score. Not vibes — pure data." },
-    { icon: Radar, color: "text-emerald-500", bg: "bg-emerald-500/10", label: "Competitor Watchtower", desc: "Get alerted when competitors post viral hits, and steal their strategy." },
+    { icon: Zap, color: "text-amber-500", bg: "bg-amber-500/10", label: "Spot rising channels early", desc: "See which channels and topics are gaining momentum before everyone else jumps on them." },
+    { icon: Pickaxe, color: "text-rose-400", bg: "bg-rose-500/10", label: "Mine viewer complaints", desc: "AI reads thousands of comments to find exactly what viewers hate about existing videos — and what they wish existed." },
+    { icon: Target, color: "text-blue-500", bg: "bg-blue-500/10", label: "Score every opportunity", desc: "Each video idea gets a simple score from 1–10, so you always know which one is worth filming first." },
+    { icon: Radar, color: "text-emerald-500", bg: "bg-emerald-500/10", label: "Watch competitors 24/7", desc: "Get an alert the moment a competitor posts a video that takes off — so you can react before it's too late." },
 ];
 
 const containerVariants: Variants = {
@@ -52,13 +52,13 @@ export default function ProblemSection() {
                     >
                         <p className="text-xs font-mono text-zinc-600 tracking-widest uppercase mb-5">The problem</p>
                         <h2 className="text-3xl font-bold text-white mb-4 leading-tight">
-                            You&apos;re not losing views.<br />You&apos;re missing signals.
+                            You&apos;re not losing views.<br />You&apos;re missing the right topics.
                         </h2>
                         <p className="text-zinc-500 text-base mb-8 leading-relaxed">
-                            By the time a topic &ldquo;looks hot,&rdquo; it&apos;s already saturated. Most tools tell you what&apos;s already working — that&apos;s too late.
+                            By the time a topic &ldquo;looks hot,&rdquo; it&apos;s already overcrowded. Most tools show you what already worked — but that window has closed.
                         </p>
                         <div className="space-y-3">
-                            <p className="text-xs font-mono text-zinc-600 uppercase mb-3">What most creators rely on</p>
+                            <p className="text-xs font-mono text-zinc-600 uppercase mb-3">What most creators do instead</p>
                             <motion.div
                                 variants={containerVariants}
                                 initial="hidden"

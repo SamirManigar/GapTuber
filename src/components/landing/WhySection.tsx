@@ -9,13 +9,13 @@ type Row = { feature: string; us: CellValue; vidiq: CellValue; tubebuddy: CellVa
 // Honest comparison — VidIQ and TubeBuddy do have basic keyword/competitor tools on paid plans.
 // Showing partial ticks is more credible than claiming they have zero features.
 const ROWS: Row[] = [
-    { feature: "Statistical Gap Detection",       us: true,  vidiq: false, tubebuddy: false, note: "" },
-    { feature: "Chrome Extension",                us: true,  vidiq: true,  tubebuddy: true,  note: "VidIQ & TubeBuddy extensions exist but lack live gap scanning" },
-    { feature: "GapTuber AI Studio",              us: true,  vidiq: false, tubebuddy: false, note: "" },
-    { feature: "Competitors Gap Analysis",        us: true,  vidiq: "partial", tubebuddy: "partial", note: "Competitors offer basic tracking, not gap-specific scoring" },
-    { feature: "Competitor Watchtower",           us: true,  vidiq: false, tubebuddy: false, note: "" },
-    { feature: "Comment Miner (NLP Analysis)",    us: true,  vidiq: false, tubebuddy: false, note: "" },
-    { feature: "Free to use",                     us: true,  vidiq: false, tubebuddy: false, note: "VidIQ & TubeBuddy require paid plans for most features" },
+    { feature: "Find untapped video topics",         us: true,  vidiq: false, tubebuddy: false, note: "" },
+    { feature: "Chrome Extension",                   us: true,  vidiq: true,  tubebuddy: true,  note: "VidIQ & TubeBuddy have extensions but can't scan for content gaps" },
+    { feature: "AI Writing Studio",                  us: true,  vidiq: false, tubebuddy: false, note: "" },
+    { feature: "See what competitors missed",         us: true,  vidiq: "partial", tubebuddy: "partial", note: "Others offer basic tracking, not gap-specific scoring" },
+    { feature: "Competitor alerts (Watchtower)",      us: true,  vidiq: false, tubebuddy: false, note: "" },
+    { feature: "Read what viewers are asking for",   us: true,  vidiq: false, tubebuddy: false, note: "" },
+    { feature: "Free to use",                         us: true,  vidiq: false, tubebuddy: false, note: "VidIQ & TubeBuddy require paid plans for most features" },
 ];
 
 const Tick = ({ on, highlight }: { on: CellValue; highlight?: boolean }) => {
@@ -54,9 +54,9 @@ export default function WhySection() {
                 >
                     <p className="text-xs font-mono text-zinc-600 tracking-widest uppercase mb-5">Comparison</p>
                     <h2 className="text-3xl font-bold text-white mb-3 leading-tight">
-                        Why GapTuber beats VidIQ &amp; TubeBuddy.
+                        Why creators choose GapTuber over VidIQ &amp; TubeBuddy.
                     </h2>
-                    <p className="text-zinc-500 text-sm">More features. Statistical accuracy. Free during early access.</p>
+                    <p className="text-zinc-500 text-sm">More features. Easier to understand. Free during early access.</p>
                 </motion.div>
 
                 <motion.div

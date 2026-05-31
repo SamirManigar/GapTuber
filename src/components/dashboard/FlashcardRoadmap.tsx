@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
+import { createPortal } from "react-dom";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -408,6 +409,54 @@ function IdeaCard({
 
 }
 
+// ─── Copy Script Button ───────────────────────────────────────────────────────
+
+function CopyScriptButton({ script }: { script: string }) {
+    const [copied, setCopied] = useState(false);
+
+    const handleCopy = async () => {
+        try {
+            await navigator.clipboard.writeText(script);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+        } catch {
+            // Fallback for older browsers
+            const el = document.createElement("textarea");
+            el.value = script;
+            document.body.appendChild(el);
+            el.select();
+            document.execCommand("copy");
+            document.body.removeChild(el);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+        }
+    };
+
+    return (
+        <button
+            onClick={handleCopy}
+            title={copied ? "Copied!" : "Copy script to clipboard"}
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium transition-all duration-200 ${
+                copied
+                    ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-400"
+                    : "bg-[#1e1e22] border-[#2a2a30] text-zinc-400 hover:text-zinc-200 hover:border-zinc-600 hover:bg-[#2a2a30]"
+            }`}
+        >
+            {copied ? (
+                <>
+                    <CheckCheck className="w-3.5 h-3.5" />
+                    Copied!
+                </>
+            ) : (
+                <>
+                    <Copy className="w-3.5 h-3.5" />
+                    Copy
+                </>
+            )}
+        </button>
+    );
+}
+
 // ─── Filter/Sort Bar ──────────────────────────────────────────────────────────
 
 interface FilterBarProps {
@@ -425,16 +474,57 @@ interface FilterBarProps {
     onSort: (v: SortKey) => void;
     selectedCount: number;
     onSelectAll: () => void;
+    onDeselect: () => void;
     onExport: () => void;
+    onBulkDelete: () => void;
     isVaultMode: boolean;
 }
 
+
 function FilterBar({
     total, filtered, search, onSearch, segment, onSegment, potential, onPotential,
-    statusFilter, onStatusFilter, sort, onSort, selectedCount, onSelectAll, onExport, isVaultMode
+    statusFilter, onStatusFilter, sort, onSort, selectedCount, onSelectAll, onDeselect, onExport, onBulkDelete, isVaultMode
 }: FilterBarProps) {
     return (
         <div className="space-y-3">
+
+            {/* ── Floating selection action bar (vault only) ── */}
+            <AnimatePresence>
+                {isVaultMode && selectedCount > 0 && (
+                    <motion.div
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                        transition={{ duration: 0.2, ease: "easeOut" }}
+                        className="flex items-center justify-between gap-3 px-4 py-3 bg-[#1a1a1e] border border-red-500/25 rounded-2xl shadow-lg shadow-red-900/10"
+                    >
+                        <div className="flex items-center gap-3">
+                            <span className="flex items-center justify-center w-6 h-6 rounded-lg bg-red-500/20 border border-red-500/30 text-red-400 text-xs font-bold">
+                                {selectedCount}
+                            </span>
+                            <span className="text-sm font-medium text-zinc-300">
+                                {selectedCount === 1 ? "1 idea selected" : `${selectedCount} ideas selected`}
+                            </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={onDeselect}
+                                className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors px-3 py-1.5 rounded-lg hover:bg-[#2a2a30]"
+                            >
+                                Deselect All
+                            </button>
+                            <button
+                                onClick={onBulkDelete}
+                                className="flex items-center gap-1.5 bg-red-600/15 hover:bg-red-600/25 text-red-400 hover:text-red-300 text-xs font-semibold px-3 py-1.5 rounded-lg border border-red-500/25 hover:border-red-500/40 transition-all"
+                            >
+                                <Trash2 className="w-3.5 h-3.5" />
+                                Delete {selectedCount === 1 ? "Idea" : `${selectedCount} Ideas`}
+                            </button>
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
             {/* Top row: search + sort + export */}
             <div className="flex items-center gap-3 flex-wrap">
                 {/* Search */}
@@ -514,6 +604,7 @@ function FilterBar({
     );
 }
 
+
 // ─── Props ────────────────────────────────────────────────────────────────────
 
 interface FlashcardRoadmapProps {
@@ -566,6 +657,7 @@ export default function FlashcardRoadmap({
     // Save state for non-vault ideas
     const [savingIds, setSavingIds] = useState<Set<string>>(new Set());
     const [savedLocalIds, setSavedLocalIds] = useState<Set<string>>(new Set());
+    const [updatingIndex, setUpdatingIndex] = useState<number | null>(null);
 
     // Sync with prop updates
     useEffect(() => {
@@ -631,22 +723,39 @@ export default function FlashcardRoadmap({
     const handleToggleStatus = async (index: number, currentStatus: string, targetStatus?: "ready" | "filming" | "done") => {
         if (!channelId) return;
         const nextStatus = targetStatus || STATUS_CONFIG[currentStatus as keyof typeof STATUS_CONFIG]?.next || "ready";
+
+        // Optimistic update
         setUpdatingIndex(index);
-        const updatedMap = { ...statusMap, [String(index)]: nextStatus };
-        setStatusMap(updatedMap);
+        setStatusMap(prev => ({ ...prev, [String(index)]: nextStatus }));
+
         try {
-            await fetch("/api/idea-status", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ channelId, ideaIndex: index, status: nextStatus, isVaultMode })
-            });
+            if (isVaultMode) {
+                // Vault mode: update ideaVault.status by idea title
+                const ideaTitle = videoIdeas[index]?.title;
+                if (!ideaTitle) return;
+                await fetch("/api/vault/status", {
+                    method: "PATCH",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ channelId, title: ideaTitle, status: nextStatus }),
+                });
+            } else {
+                // Dashboard mode: update brandingData.videoIdeaStatus by index
+                await fetch("/api/idea-status", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ channelId, ideaIndex: index, status: nextStatus, isVaultMode: false }),
+                });
+            }
             router.refresh();
         } catch (err) {
+            // Revert optimistic update on failure
             console.error("Failed to update status", err);
+            setStatusMap(prev => ({ ...prev, [String(index)]: currentStatus }));
         } finally {
             setUpdatingIndex(null);
         }
     };
+
 
     const handleDeleteIdea = async (title: string) => {
         if (!isVaultMode || !channelId) return;
@@ -655,6 +764,27 @@ export default function FlashcardRoadmap({
             if (res.ok) setVideoIdeas(prev => prev.filter(i => i.title !== title));
         } catch (e) { console.error(e); }
     };
+
+    const handleBulkDelete = async () => {
+        if (!isVaultMode || !channelId || selectedIds.size === 0) return;
+        // Get the titles of selected ideas
+        const selectedTitles = ideas
+            .filter(i => selectedIds.has(i.id))
+            .map(i => i.title);
+
+        // Delete all in parallel
+        await Promise.allSettled(
+            selectedTitles.map(title =>
+                fetch(`/api/channels/${channelId}/ideas?title=${encodeURIComponent(title)}`, { method: "DELETE" })
+            )
+        );
+
+        // Remove from local state and clear selection
+        setVideoIdeas(prev => prev.filter(i => !selectedTitles.includes(i.title)));
+        setSelectedIds(new Set());
+        toast.success(`Deleted ${selectedTitles.length} idea${selectedTitles.length === 1 ? "" : "s"}`);
+    };
+
 
     const handleGenerateScript = (idea: VideoIdea, index: number) => {
         const rawIdea = videoIdeas[index];
@@ -787,7 +917,6 @@ Ensure high-retention storytelling with a strong CTA. Generate the complete scri
     // ── Render ────────────────────────────────────────────────────────────────
 
     const hasIdeas = ideas.length > 0;
-    const [updatingIndex, setUpdatingIndex] = useState<number | null>(null);
 
     return (
         <div className="space-y-6">
@@ -801,10 +930,10 @@ Ensure high-retention storytelling with a strong CTA. Generate the complete scri
                             <Database className="w-5 h-5 text-emerald-400" />
                         )}
                         <h2 className="text-xl font-bold text-white tracking-tight">
-                            {isVaultMode ? "Idea Vault" : "Content Roadmap"}
+                            {isVaultMode ? "Idea Vault" : "Your Video Plan"}
                         </h2>
                         <span className="px-2 py-0.5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] font-mono font-bold rounded-lg uppercase">
-                            {isVaultMode ? "Private Vault" : "AI Optimized"}
+                            {isVaultMode ? "Your Saved Ideas" : "Powered by AI"}
                         </span>
                         {!isVaultMode && confidenceScore !== null && (
                             <span className={`px-2 py-0.5 border text-[10px] font-mono font-bold rounded-lg uppercase ${
@@ -817,15 +946,15 @@ Ensure high-retention storytelling with a strong CTA. Generate the complete scri
                     </div>
                     <p className="text-sm text-zinc-500">
                         {isVaultMode
-                            ? `Managing ${videoIdeas.length} saved concepts in your private repository.`
+                            ? `You have ${videoIdeas.length} saved ideas ready to film.`
                             : videoIdeas.length > 0
-                                ? `${ideas.length} concepts · click a card to start script generation.`
-                                : `Generate data-driven video ideas based on ${category} trends.`}
+                                ? `${ideas.length} video ideas ready — click any card to write a script.`
+                                : `Generate video ideas tailored to your ${category} niche.`}
                     </p>
                     <p className="text-xs text-zinc-600">
                         {isVaultMode
-                            ? "Push ideas from Gap Scanner, Competitor Watchtower, or Comment Miner directly into this vault."
-                            : "AI-computed ideas are grounded in real YouTube market gaps, competitor analysis, and comment mining."}
+                            ? "Save ideas from your Gap Scanner, Comment Miner, or Competitor alerts to build your content plan."
+                            : "Ideas are based on real YouTube data: what viewers want, what competitors are missing, and what's trending now."}
                     </p>
                 </div>
 
@@ -835,7 +964,7 @@ Ensure high-retention storytelling with a strong CTA. Generate the complete scri
                         <>
                             <button
                                 onClick={() => setUseWatchtower(v => !v)}
-                                title={useWatchtower ? "Watchtower intel active" : "Watchtower intel disabled"}
+                                title={useWatchtower ? "Using competitor data to improve ideas" : "Competitor data disabled"}
                                 className={`flex items-center gap-1.5 text-[10px] font-mono font-bold px-3 py-2 rounded-xl border transition-all ${
                                     useWatchtower
                                         ? "bg-amber-500/10 text-amber-400 border-amber-500/25 hover:bg-amber-500/20"
@@ -843,7 +972,7 @@ Ensure high-retention storytelling with a strong CTA. Generate the complete scri
                                 }`}
                             >
                                 <Radar className={`w-3.5 h-3.5 ${useWatchtower ? "animate-pulse" : ""}`} />
-                                Watchtower {useWatchtower ? "ON" : "OFF"}
+                                Competitor Data {useWatchtower ? "ON" : "OFF"}
                             </button>
                             <button
                                 onClick={handleGenerateIdeas}
@@ -863,33 +992,39 @@ Ensure high-retention storytelling with a strong CTA. Generate the complete scri
                 <VaultStatsBar ideas={ideas} statusMap={statusMap} />
             )}
 
-            {/* ── Script Modal ── */}
-            <AnimatePresence>
-                {viewScript && (
-                    <motion.div
-                        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm"
-                    >
+            {/* ── Script Modal (portal to escape overflow-y-auto on dashboard <main>) ── */}
+            {typeof window !== "undefined" && createPortal(
+                <AnimatePresence>
+                    {viewScript && (
                         <motion.div
-                            initial={{ scale: 0.97, y: 12 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.97, y: 12 }}
-                            className="relative bg-[#111113] border border-[#2a2a30] rounded-2xl w-full max-w-4xl max-h-[88vh] flex flex-col shadow-2xl overflow-hidden"
+                            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                            className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm"
                         >
-                            <div className="flex items-center justify-between p-4 border-b border-[#1e1e22] bg-[#0c0c0e]">
-                                <h3 className="font-bold text-white flex items-center gap-2">
-                                    <FileText className="w-4 h-4 text-emerald-400" />
-                                    {viewScript.title}
-                                </h3>
-                                <button onClick={() => setViewScript(null)} className="p-1 text-zinc-500 hover:text-white transition-colors">
-                                    <X className="w-4 h-4" />
-                                </button>
-                            </div>
-                            <div className="p-6 overflow-y-auto prose prose-invert prose-emerald prose-sm max-w-none prose-p:leading-relaxed prose-headings:text-white prose-td:border prose-td:border-[#1e1e22] prose-th:border prose-th:border-[#1e1e22] prose-th:bg-[#1e1e22] prose-table:border-collapse">
-                                <ReactMarkdown remarkPlugins={[remarkGfm]}>{viewScript.script}</ReactMarkdown>
-                            </div>
+                            <motion.div
+                                initial={{ scale: 0.97, y: 12 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.97, y: 12 }}
+                                className="relative bg-[#111113] border border-[#2a2a30] rounded-2xl w-full max-w-4xl max-h-[88vh] flex flex-col shadow-2xl overflow-hidden"
+                            >
+                                <div className="flex items-center justify-between p-4 border-b border-[#1e1e22] bg-[#0c0c0e]">
+                                    <h3 className="font-bold text-white flex items-center gap-2 min-w-0 mr-4">
+                                        <FileText className="w-4 h-4 text-emerald-400 shrink-0" />
+                                        <span className="truncate">{viewScript.title}</span>
+                                    </h3>
+                                    <div className="flex items-center gap-2 shrink-0">
+                                        <CopyScriptButton script={viewScript.script} />
+                                        <button onClick={() => setViewScript(null)} className="p-1.5 text-zinc-500 hover:text-white hover:bg-[#1e1e22] rounded-lg transition-colors">
+                                            <X className="w-4 h-4" />
+                                        </button>
+                                    </div>
+                                </div>
+                                <div className="p-6 overflow-y-auto prose prose-invert prose-emerald prose-sm max-w-none prose-p:leading-relaxed prose-headings:text-white prose-td:border prose-td:border-[#1e1e22] prose-th:border prose-th:border-[#1e1e22] prose-th:bg-[#1e1e22] prose-table:border-collapse">
+                                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{viewScript.script}</ReactMarkdown>
+                                </div>
+                            </motion.div>
                         </motion.div>
-                    </motion.div>
-                )}
-            </AnimatePresence>
+                    )}
+                </AnimatePresence>,
+                document.body
+            )}
 
             {/* ── Error ── */}
             {error && (
@@ -923,12 +1058,12 @@ Ensure high-retention storytelling with a strong CTA. Generate the complete scri
                         {isVaultMode ? <Library className="w-6 h-6 text-zinc-500" /> : <Database className="w-6 h-6 text-zinc-500" />}
                     </div>
                     <h3 className="text-white font-bold mb-2">
-                        {isVaultMode ? "Your Idea Vault is Empty" : "No concepts generated yet"}
+                        {isVaultMode ? "Your Idea Vault is Empty" : "No video ideas yet"}
                     </h3>
                     <p className="text-zinc-500 text-sm max-w-sm mx-auto mb-8">
                         {isVaultMode
-                            ? "Save ideas from your Gap Scanner, Comment Miner, or Competitor Watchtower to start building your content roadmap."
-                            : "Compute data-driven video concepts using real YouTube market analysis, competitor gaps, and trend data."}
+                            ? "Save ideas from your Gap Scanner, Comment Miner, or Competitor alerts to start your content plan."
+                            : "Click the button below to generate video ideas based on real data from your niche."}
                     </p>
                     {isVaultMode ? (
                         <button
@@ -969,7 +1104,9 @@ Ensure high-retention storytelling with a strong CTA. Generate the complete scri
                             if (selectedIds.size === ideas.length) setSelectedIds(new Set());
                             else setSelectedIds(new Set(ideas.map(i => i.id)));
                         }}
+                        onDeselect={() => setSelectedIds(new Set())}
                         onExport={handleExport}
+                        onBulkDelete={handleBulkDelete}
                         isVaultMode={isVaultMode}
                     />
 

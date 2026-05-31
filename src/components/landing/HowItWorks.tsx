@@ -1,33 +1,33 @@
 const STEPS = [
     {
         num: "01",
-        title: "Competitors Gap Analysis",
-        desc: "Point GapTuber at any YouTube channel with 500+ videos. We pull view velocity, engagement rates, and upload consistency — from real API data.",
-        details: ["Bayesian engagement scoring", "EMA trend detection", "Upload schedule analysis"],
+        title: "Analyse Any Competitor Channel",
+        desc: "Paste any YouTube channel link and GapTuber instantly shows you what videos are growing fast, which are flopping, and how often they post.",
+        details: ["See which videos get the most engagement", "Spot channels growing rapidly", "Understand their posting patterns"],
     },
     {
         num: "02",
-        title: "Statistical gap detection",
-        desc: "Our 7-signal engine uses exponential decay weighting and keyword relevance to surface gaps with statistical confidence. No guessing.",
-        details: ["Wilson score engagement reliability", "Exponential decay velocity", "Keyword relevance"],
+        title: "Find Video Topics Nobody Has Covered",
+        desc: "GapTuber checks 7 different signals to find video topics your audience wants to watch but no one has made well yet. No guesswork.",
+        details: ["See how strong each topic opportunity is", "Know if a topic is rising or fading", "Find relevant keywords easily"],
     },
     {
         num: "03",
-        title: "Comment Miner",
-        desc: "NLP analysis of comment pain points to find what viewers hate about existing content, surfacing direct opportunities.",
-        details: ["Frustration NLP", "Extract viewer pain points", "Identify missing topics"],
+        title: "Discover What Viewers Actually Want",
+        desc: "GapTuber reads through thousands of YouTube comments to find complaints, questions, and requests that viewers keep repeating.",
+        details: ["Find recurring viewer complaints", "Spot missing topics people ask for", "Understand your audience's biggest frustrations"],
     },
     {
         num: "04",
-        title: "Competitor Watchtower",
-        desc: "Track competitor performance over time. Get alerted when they post highly successful videos or when their metrics drop.",
-        details: ["Performance tracking", "Upload alerts", "Trend visualization"],
+        title: "Stay Ahead of Competitors",
+        desc: "Get notified the moment a competitor posts a video that blows up. See what worked for them and adapt your strategy before others do.",
+        details: ["Instant alerts on viral competitor videos", "Track their view and subscriber growth", "See what topics they're doubling down on"],
     },
     {
         num: "05",
         title: "GapTuber AI Studio",
-        desc: "Your personal YouTube AI assistant. Generate scripts, brainstorm ideas, and strategize with AI trained on YouTube analytics.",
-        details: ["Script Writer", "Idea Generator", "Channel Blueprint"],
+        desc: "Turn any video idea into a full script in minutes. Chat with your personal AI assistant that knows your channel niche and audience.",
+        details: ["Full script writer", "Instant video idea generator", "Personalised channel strategy"],
     },
 ];
 

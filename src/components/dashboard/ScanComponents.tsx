@@ -84,19 +84,19 @@ export function AnalyticsPanel({ analytics }: { analytics: ScanAnalytics }) {
     const r = (v: number | null | undefined) => Math.round((v ?? 0) * 10);
 
     const rings = [
-        { score: s(analytics.velocity?.score),    label: "Velocity",    color: "#34d399" },
-        { score: s(analytics.saturation?.score),  label: "Opportunity", color: "#60a5fa" },
-        { score: s(analytics.frustration?.score), label: "Frustration", color: "#f87171" },
-        { score: s(analytics.trend?.score),       label: "Trend",       color: "#a78bfa" },
+        { score: s(analytics.velocity?.score),    label: "Growth Speed",   color: "#34d399" },
+        { score: s(analytics.saturation?.score),  label: "Opportunity",    color: "#60a5fa" },
+        { score: s(analytics.frustration?.score), label: "Viewer Demand",  color: "#f87171" },
+        { score: s(analytics.trend?.score),       label: "Trend Strength", color: "#a78bfa" },
     ];
 
     const bars = [
-        { label: "Velocity",    score: r(analytics.velocity?.score) },
-        { label: "Opportunity", score: r(analytics.saturation?.score) },
-        { label: "Frustration", score: r(analytics.frustration?.score) },
-        { label: "Trend",       score: r(analytics.trend?.score) },
-        { label: "Competition", score: r(analytics.competition?.score) },
-        { label: "Engagement",  score: r(analytics.engagement?.score) },
+        { label: "Growth Speed",    score: r(analytics.velocity?.score) },
+        { label: "Opportunity",     score: r(analytics.saturation?.score) },
+        { label: "Viewer Demand",   score: r(analytics.frustration?.score) },
+        { label: "Trend Strength",  score: r(analytics.trend?.score) },
+        { label: "Competition",     score: r(analytics.competition?.score) },
+        { label: "Engagement",      score: r(analytics.engagement?.score) },
     ];
 
     return (
@@ -104,11 +104,14 @@ export function AnalyticsPanel({ analytics }: { analytics: ScanAnalytics }) {
 
             {/* Header */}
             <div className="flex items-center justify-between px-5 py-3.5 border-b border-[#1e1e22]">
-                <span className="text-[10px] font-mono text-zinc-500 uppercase tracking-widest">Signal Analysis</span>
+                <div>
+                    <span className="text-[10px] font-mono text-zinc-500 uppercase tracking-widest">Opportunity Breakdown</span>
+                    <p className="text-[9px] text-zinc-700 mt-0.5">Higher scores = stronger opportunity in that area</p>
+                </div>
                 {analytics.revenueEstimate && (
                     <span className="text-xs font-bold text-emerald-400 font-mono">
                         ${analytics.revenueEstimate.low.toLocaleString()}–${analytics.revenueEstimate.high.toLocaleString()}
-                        <span className="text-zinc-600 font-normal ml-1">/mo est.</span>
+                        <span className="text-zinc-600 font-normal ml-1">estimated monthly earnings</span>
                     </span>
                 )}
             </div>
@@ -125,20 +128,20 @@ export function AnalyticsPanel({ analytics }: { analytics: ScanAnalytics }) {
 
                     {/* Signal bars */}
                     <div className="space-y-2.5">
-                        <p className="text-[9px] font-mono text-zinc-600 uppercase tracking-widest mb-3">Signal Strengths</p>
+                        <p className="text-[9px] font-mono text-zinc-600 uppercase tracking-widest mb-3">Score Breakdown</p>
                         {bars.map(b => <SignalBar key={b.label} {...b} />)}
                     </div>
 
                     {/* Key insights — only the most actionable */}
                     <div className="space-y-3">
-                        <p className="text-[9px] font-mono text-zinc-600 uppercase tracking-widest">Key Insights</p>
+                        <p className="text-[9px] font-mono text-zinc-600 uppercase tracking-widest">What to do next</p>
 
                         {/* Best upload window */}
                         {analytics.uploadSchedule?.bestDay && (
                             <div className="flex items-start gap-3 p-3 bg-[#111113] border border-[#1e1e22] rounded-xl">
                                 <Clock className="w-3.5 h-3.5 text-zinc-500 shrink-0 mt-0.5" />
                                 <div>
-                                    <p className="text-[10px] font-mono text-zinc-500 uppercase mb-0.5">Upload Window</p>
+                                    <p className="text-[10px] font-mono text-zinc-500 uppercase mb-0.5">Best Time to Post</p>
                                     <p className="text-xs font-semibold text-zinc-200">
                                         {analytics.uploadSchedule.bestDay} · {analytics.uploadSchedule.bestHour}:00 UTC
                                     </p>
@@ -188,7 +191,7 @@ export function AnalyticsPanel({ analytics }: { analytics: ScanAnalytics }) {
                 {/* Pain Points — only if meaningful */}
                 {(analytics.frustration?.painPoints?.length ?? 0) > 0 && (
                     <div className="pt-4 border-t border-[#1e1e22]/50">
-                        <p className="text-[9px] font-mono text-zinc-600 uppercase tracking-widest mb-2.5">Audience Pain Points</p>
+                        <p className="text-[9px] font-mono text-zinc-600 uppercase tracking-widest mb-2.5">What Viewers Complain About</p>
                         <div className="flex flex-wrap gap-2">
                             {analytics.frustration.painPoints.slice(0, 6).map((p, i) => (
                                 <span key={i} className="text-[10px] font-mono text-red-400/80 border border-red-900/40 bg-red-950/20 rounded-lg px-2.5 py-1">
@@ -202,7 +205,7 @@ export function AnalyticsPanel({ analytics }: { analytics: ScanAnalytics }) {
                 {/* Tags — compact, max 12 */}
                 {(analytics.suggestedTags?.length ?? 0) > 0 && (
                     <div className="pt-1">
-                        <p className="text-[9px] font-mono text-zinc-600 uppercase tracking-widest mb-2.5">Suggested Tags</p>
+                        <p className="text-[9px] font-mono text-zinc-600 uppercase tracking-widest mb-2.5">Recommended Tags</p>
                         <div className="flex flex-wrap gap-1.5">
                             {analytics.suggestedTags.slice(0, 12).map((tag, i) => (
                                 <span key={i} className="text-[10px] font-mono bg-[#1a1a1e] text-zinc-500 border border-[#232328] rounded-lg px-2 py-0.5 hover:text-zinc-300 transition-colors cursor-default">
@@ -274,9 +277,8 @@ export function GapCard({ gap, rank, channelId, isAlreadySaved }: {
                 <div className="flex flex-col items-center gap-2 shrink-0">
                     <div className={`flex flex-col items-center justify-center w-11 h-11 rounded-xl border ${isTop ? "bg-emerald-500/10 border-emerald-500/20" : isMid ? "bg-amber-500/8 border-amber-500/15" : "bg-[#1e1e22] border-[#2a2a30]"}`}>
                         <span className={`text-sm font-bold leading-none tabular-nums ${scoreColor}`}>{gap.gapScore}</span>
-                        <span className="text-[7px] font-mono text-zinc-600 uppercase mt-0.5">score</span>
-                    </div>
-                    {channelId && <SaveIdeaButton gap={gap} channelId={channelId} isAlreadySaved={isAlreadySaved} />}
+                        <span className="text-[7px] font-mono text-zinc-600 uppercase mt-0.5">/ 10</span>
+                    </div>           {channelId && <SaveIdeaButton gap={gap} channelId={channelId} isAlreadySaved={isAlreadySaved} />}
                 </div>
             </div>
 
@@ -350,7 +352,7 @@ function CollapsibleOutline({ items }: { items: string[] }) {
                 className="w-full flex items-center justify-between px-3 py-2 text-[9px] font-mono text-zinc-600 uppercase tracking-widest hover:text-zinc-400 transition-colors"
             >
                 <span className="flex items-center gap-1.5">
-                    <Crosshair className="w-3 h-3" /> Structure ({items.length} sections)
+                    <Crosshair className="w-3 h-3" /> Video Outline ({items.length} parts)
                 </span>
                 <ChevronDown className={`w-3 h-3 transition-transform duration-200 ${open ? "rotate-180" : ""}`} />
             </button>

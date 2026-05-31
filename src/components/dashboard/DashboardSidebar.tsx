@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams, useRouter } from "next/navigation";
-import { MessageSquareText, TrendingUp, Plus, Trash2, Loader2, Youtube, AlertTriangle, X, Target, Library, Settings, LogOut, Sun, Moon, MoreVertical, Radar, MessageCircle, Zap } from "lucide-react";
+import { MessageSquareText, TrendingUp, Plus, Trash2, Loader2, Youtube, AlertTriangle, X, Target, Library, Settings, LogOut, Sun, Moon, MoreVertical, Radar, MessageCircle, Zap, Menu } from "lucide-react";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { signOut } from "next-auth/react";
 import { useEffect, useState as useReactState } from "react";
@@ -246,10 +246,29 @@ export function DashboardSidebar({ session, user, allChannels, activeChannel: de
                 />
             )}
 
-            <aside className="w-full md:w-72 md:h-screen md:sticky md:top-0 bg-[#0c0c0e]/80 backdrop-blur-xl border-r border-[#1e1e22]/50 flex flex-col z-20 shrink-0 overflow-hidden">
+            {/* Mobile Top Navigation */}
+            <div className="md:hidden flex items-center justify-between p-4 bg-[#0c0c0e]/95 backdrop-blur-xl border-b border-[#1e1e22]/50 sticky top-0 z-30">
+                <Link href="/" className="flex items-center gap-2.5">
+                    <img src="/logo.svg" alt="GapTuber Logo" className="h-[24px] w-auto" />
+                    <span className="text-sm font-bold text-white font-mono tracking-tight">GapTuber</span>
+                </Link>
+                <button onClick={() => setIsMenuOpen(!isMenuOpen)} className="p-1.5 text-zinc-400 hover:text-white bg-[#1e1e22] rounded-md transition-colors">
+                    {isMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+                </button>
+            </div>
+
+            {/* Mobile Backdrop */}
+            {isMenuOpen && (
+                <div 
+                    className="fixed inset-0 bg-black/60 backdrop-blur-sm z-30 md:hidden"
+                    onClick={() => setIsMenuOpen(false)}
+                />
+            )}
+
+            <aside className={`fixed inset-y-0 left-0 z-40 w-[280px] md:w-72 transform transition-transform duration-200 ease-in-out md:relative md:translate-x-0 flex flex-col shrink-0 overflow-hidden bg-[#0c0c0e] md:bg-[#0c0c0e]/80 md:backdrop-blur-xl border-r border-[#1e1e22]/50 ${isMenuOpen ? "translate-x-0 shadow-2xl" : "-translate-x-full"} md:h-screen md:sticky md:top-0`}>
                 {/* Fixed top section: logo + nav */}
                 <div className="p-6 pb-4 shrink-0">
-                    <Link href="/" className="flex items-center gap-2.5 mb-8">
+                    <Link href="/" className="hidden md:flex items-center gap-2.5 mb-8">
                         <img src="/logo.svg" alt="GapTuber Logo" className="h-[28px] w-auto" />
                         <span className="text-sm font-bold text-white font-mono tracking-tight">GapTuber</span>
                         <span className="text-[10px] font-mono text-emerald-500 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded">beta</span>
@@ -260,6 +279,7 @@ export function DashboardSidebar({ session, user, allChannels, activeChannel: de
                         <div className="text-xs font-mono text-zinc-600 uppercase tracking-widest mb-3 px-2">Menu</div>
                         <Link
                             href={`/dashboard?channelId=${activeChannel.id}`}
+                            onClick={() => setIsMenuOpen(false)}
                             className={`flex items-center gap-3 px-3 py-2 rounded-md transition-all font-medium text-sm ${isDashboardHome
                                     ? "bg-[#111113] text-white border border-[#1e1e22]"
                                     : "text-zinc-500 hover:text-zinc-300 hover:bg-[#111113] border border-transparent hover:translate-x-1"
@@ -270,6 +290,7 @@ export function DashboardSidebar({ session, user, allChannels, activeChannel: de
                         </Link>
                         <Link
                             href={`/dashboard/bot?channelId=${activeChannel.id}`}
+                            onClick={() => setIsMenuOpen(false)}
                             className={`flex items-center gap-3 px-3 py-2 rounded-md transition-all font-medium text-sm ${isBotPage
                                     ? "bg-[#111113] text-white border border-[#1e1e22]"
                                     : "text-zinc-500 hover:text-zinc-300 hover:bg-[#111113] border border-transparent hover:translate-x-1"
@@ -280,6 +301,7 @@ export function DashboardSidebar({ session, user, allChannels, activeChannel: de
                         </Link>
                         <Link
                             href={`/dashboard/competitors?channelId=${activeChannel.id}`}
+                            onClick={() => setIsMenuOpen(false)}
                             className={`flex items-center gap-3 px-3 py-2 rounded-md transition-all font-medium text-sm ${isCompetitorsPage
                                     ? "bg-[#111113] text-white border border-[#1e1e22]"
                                     : "text-zinc-500 hover:text-zinc-300 hover:bg-[#111113] border border-transparent hover:translate-x-1"
@@ -290,6 +312,7 @@ export function DashboardSidebar({ session, user, allChannels, activeChannel: de
                         </Link>
                         <Link
                             href={`/dashboard/watchtower?channelId=${activeChannel.id}`}
+                            onClick={() => setIsMenuOpen(false)}
                             className={`flex items-center gap-3 px-3 py-2 rounded-md transition-all font-medium text-sm ${isWatchtowerPage
                                     ? "bg-[#111113] text-white border border-[#1e1e22]"
                                     : "text-zinc-500 hover:text-zinc-300 hover:bg-[#111113] border border-transparent hover:translate-x-1"
@@ -300,6 +323,7 @@ export function DashboardSidebar({ session, user, allChannels, activeChannel: de
                         </Link>
                         <Link
                             href={`/dashboard/miner?channelId=${activeChannel.id}`}
+                            onClick={() => setIsMenuOpen(false)}
                             className={`flex items-center gap-3 px-3 py-2 rounded-md transition-all font-medium text-sm ${isMinerPage
                                     ? "bg-[#111113] text-white border border-[#1e1e22]"
                                     : "text-zinc-500 hover:text-zinc-300 hover:bg-[#111113] border border-transparent hover:translate-x-1"
@@ -310,6 +334,7 @@ export function DashboardSidebar({ session, user, allChannels, activeChannel: de
                         </Link>
                         <Link
                             href={`/dashboard/vault?channelId=${activeChannel.id}`}
+                            onClick={() => setIsMenuOpen(false)}
                             className={`flex items-center gap-3 px-3 py-2 rounded-md transition-all font-medium text-sm ${isVaultPage
                                     ? "bg-[#111113] text-white border border-[#1e1e22]"
                                     : "text-zinc-500 hover:text-zinc-300 hover:bg-[#111113] border border-transparent hover:translate-x-1"
@@ -320,6 +345,7 @@ export function DashboardSidebar({ session, user, allChannels, activeChannel: de
                         </Link>
                         <Link
                             href={`/dashboard/settings?channelId=${activeChannel.id}`}
+                            onClick={() => setIsMenuOpen(false)}
                             className={`flex items-center gap-3 px-3 py-2 rounded-md transition-all font-medium text-sm ${isSettingsPage
                                     ? "bg-[#111113] text-white border border-[#1e1e22]"
                                     : "text-zinc-500 hover:text-zinc-300 hover:bg-[#111113] border border-transparent hover:translate-x-1"
@@ -340,6 +366,7 @@ export function DashboardSidebar({ session, user, allChannels, activeChannel: de
                         <h2 className="text-xs font-mono text-zinc-600 uppercase tracking-widest">Projects</h2>
                         <Link
                             href="/onboarding?force=true"
+                            onClick={() => setIsMenuOpen(false)}
                             className="text-zinc-500 hover:text-zinc-300 transition-colors"
                             title="Add New Channel"
                         >
@@ -355,6 +382,7 @@ export function DashboardSidebar({ session, user, allChannels, activeChannel: de
                             <Link
                                 key={channel.id}
                                 href={`/dashboard?channelId=${channel.id}`}
+                                onClick={() => setIsMenuOpen(false)}
                                 className={`flex items-center justify-between gap-3 px-3 py-2 rounded-md transition-all group ${activeChannel.id === channel.id
                                         ? "bg-[#111113]/80 backdrop-blur-md border border-emerald-500/20 text-white shadow-[0_0_20px_rgba(16,185,129,0.05)]"
                                         : "hover:bg-[#111113]/50 border border-transparent text-zinc-500"
