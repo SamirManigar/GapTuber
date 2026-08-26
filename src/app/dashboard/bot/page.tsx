@@ -13,7 +13,15 @@ function ChatHistorySidebar({ collapsed, setCollapsed }: { collapsed: boolean; s
     const { chats, activeChatId, setActiveChatId, createNewChat, deleteChat, isLoadingChats } = useChat();
 
     return (
-        <div className={`relative flex flex-col border-r border-[#1e1e22] bg-[#0c0c0e] transition-all duration-300 ${collapsed ? "w-0 overflow-hidden border-r-0" : "w-64 shrink-0"}`}>
+        <>
+            {/* Mobile overlay */}
+            {!collapsed && (
+                <div 
+                    className="md:hidden absolute inset-0 bg-black/60 z-20"
+                    onClick={() => setCollapsed(true)}
+                />
+            )}
+            <div className={`absolute md:relative z-30 h-full flex flex-col border-r border-[#1e1e22] bg-[#0c0c0e] transition-all duration-300 ${collapsed ? "-translate-x-full md:translate-x-0 w-0 overflow-hidden border-r-0" : "w-[280px] md:w-64 shrink-0"}`}>
             <div className="p-4 border-b border-[#1e1e22]">
                 <button
                     onClick={() => createNewChat()}
@@ -61,7 +69,8 @@ function ChatHistorySidebar({ collapsed, setCollapsed }: { collapsed: boolean; s
             >
                 <ChevronLeft className="w-3.5 h-3.5" />
             </button>
-        </div>
+            </div>
+        </>
     );
 }
 
@@ -256,6 +265,12 @@ function BotPageInner() {
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
     useEffect(() => {
+        if (window.innerWidth < 768) {
+            setSidebarCollapsed(true);
+        }
+    }, []);
+
+    useEffect(() => {
         if (hasSentRef.current || isLoadingChats) return;
         const title = searchParams?.get("title");
         const prompt = searchParams?.get("prompt");
@@ -284,7 +299,7 @@ function BotPageInner() {
     const activeChat = chats.find(c => c.id === activeChatId);
 
     return (
-        <div className="flex h-screen md:h-[calc(100vh-0px)] bg-[#0c0c0e] overflow-hidden">
+        <div className="flex h-screen md:h-[calc(100vh-0px)] bg-[#0c0c0e] overflow-hidden relative">
             <ChatHistorySidebar collapsed={sidebarCollapsed} setCollapsed={setSidebarCollapsed} />
             <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
                 <BotHeader title={activeChat?.title} collapsed={sidebarCollapsed} setCollapsed={setSidebarCollapsed} />

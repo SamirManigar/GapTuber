@@ -18,10 +18,13 @@ export const env = createEnv({
     TOKEN_ENCRYPTION_KEY: z.string().length(64),
     GEMINI_API_KEY: z.string().optional(),
     OPENROUTER_API_KEY: z.string().optional(),
+    RAZORPAY_KEY_SECRET: z.string().min(1),
+    RAZORPAY_WEBHOOK_SECRET: z.string().optional(),
   },
   client: {
     NEXT_PUBLIC_APP_URL: z.string().url(),
     NEXT_PUBLIC_SENTRY_DSN: z.string().url().optional(),
+    NEXT_PUBLIC_RAZORPAY_KEY_ID: z.string().min(1),
   },
   // If you're using Next.js < 13.4.4, you'll need to specify the runtimeEnv manually
   runtimeEnv: {
@@ -40,7 +43,10 @@ export const env = createEnv({
     TOKEN_ENCRYPTION_KEY: process.env.TOKEN_ENCRYPTION_KEY,
     GEMINI_API_KEY: process.env.GEMINI_API_KEY,
     OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY,
+    RAZORPAY_KEY_SECRET: process.env.RAZORPAY_KEY_SECRET,
+    RAZORPAY_WEBHOOK_SECRET: process.env.RAZORPAY_WEBHOOK_SECRET,
     NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
     NEXT_PUBLIC_SENTRY_DSN: process.env.NEXT_PUBLIC_SENTRY_DSN,
+    NEXT_PUBLIC_RAZORPAY_KEY_ID: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
   },
 });

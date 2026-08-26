@@ -82,7 +82,8 @@ export async function getUserByEmail(email: string) {
 export async function deductUserCredits(userId: string, amount: number, action: string) {
     const [updated] = await db
         .update(users)
-        .set({ credits: sql`${users.credits} - ${amount}` })
+        // GREATEST prevents credits going negative (race-condition safe at DB level)
+        .set({ credits: sql`GREATEST(${users.credits} - ${amount}, 0)` })
         .where(eq(users.id, userId))
         .returning();
 

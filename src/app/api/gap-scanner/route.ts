@@ -152,9 +152,6 @@ export async function POST(req: NextRequest) {
             env.GROQ_API_KEY_3
         ].filter(Boolean) as string[];
 
-        // Deduct 1 credit for analysis
-        await deductUserCredits(dbUser.id, 1, "Extension Search Scanner");
-
         if (keys.length === 0) {
             return NextResponse.json(
                 { success: false, error: "Groq API keys not configured." },
@@ -228,7 +225,7 @@ For commentInsights:
             try {
                 const groq = createGroq({ apiKey: activeKey });
                 const result = await generateText({
-                    model: groq("llama-3.3-70b-versatile"),
+                    model: groq("openai/gpt-oss-120b"),
                     messages: [
                         { role: "system", content: "You must output ONLY valid JSON that strictly matches the required schema. No markdown fences, no explanatory text." },
                         { role: "user", content: prompt + `\n\nREQUIRED JSON SCHEMA:\n${JSON.stringify({ success: true, keyword: "string", gaps: [{ title: "string", gapScore: "number", reasoning: "string", hook: "string", format: "string", monetizationAngle: "string", targetAudience: "string", competitorWeakness: "string", contentOutline: ["string"], seoTips: ["string"] }], overallOpportunity: "string", commentInsights: { totalAnalyzed: "number", frustrationRate: "number", topPainPoints: ["string"], topQuestions: ["string"] } }, null, 2)}` }
@@ -258,6 +255,9 @@ For commentInsights:
             logger.error("[Gap Scanner AI Error] All keys exhausted.", lastError);
             return NextResponse.json({ success: false, error: "AI service temporarily unavailable (Rate limit)." }, { status: 503, headers: corsHeaders });
         }
+
+        // ── Deduct credit only after AI succeeds (no charge on AI failure) ────────
+        await deductUserCredits(dbUser.id, 1, "Extension Search Scanner");
 
         // ── Persist to DB (non-blocking, fire-and-forget) ───────────────────────
         try {

@@ -204,7 +204,7 @@ COMPUTED DATA SIGNALS`
         try {
             const groq = createGroq({ apiKey: activeKey });
             const result = await generateText({
-                model: groq("llama-3.3-70b-versatile"),
+                model: groq("openai/gpt-oss-120b"),
                 messages: [
                     {
                         role: "system",

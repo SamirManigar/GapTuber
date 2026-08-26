@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, Suspense } from "react";
 import { signIn, signOut, useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { Youtube, RefreshCw, CheckCircle, AlertCircle, Eye, ThumbsUp, MessageSquare, BarChart2, Zap, X } from "lucide-react";
+import { Youtube, RefreshCw, CheckCircle, AlertCircle, Eye, ThumbsUp, MessageSquare, BarChart2, Zap, X, Trash2, TriangleAlert } from "lucide-react";
 
 interface ChannelData {
     id: string;
@@ -52,6 +52,11 @@ function YouTubeSettingsContent() {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState<string | null>(null);
+
+    // Danger zone state
+    const [showDeleteZone, setShowDeleteZone] = useState(false);
+    const [deleteConfirmEmail, setDeleteConfirmEmail] = useState("");
+    const [isDeleting, setIsDeleting] = useState(false);
 
     // Handle cross-account link success message
     useEffect(() => {
@@ -332,6 +337,82 @@ function YouTubeSettingsContent() {
 
                 </div>
             )}
+
+            {/* ── Danger Zone ──────────────────────────────────────── */}
+            <div className="bg-[#111113] border border-red-900/30 rounded-xl p-6 mt-8">
+                <h3 className="text-[10px] font-mono uppercase tracking-widest text-red-500/70 border-b border-red-900/20 pb-3 mb-6 flex items-center gap-2">
+                    <TriangleAlert className="w-3.5 h-3.5" />
+                    Danger Zone
+                </h3>
+
+                {!showDeleteZone ? (
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                        <div>
+                            <p className="text-sm font-bold text-zinc-300">Delete Account</p>
+                            <p className="text-xs text-zinc-500 mt-1">Permanently delete your account and all associated data. This cannot be undone.</p>
+                        </div>
+                        <button
+                            onClick={() => setShowDeleteZone(true)}
+                            className="shrink-0 flex items-center gap-2 px-4 py-2 text-sm font-bold text-red-400 border border-red-900/40 bg-red-950/20 hover:bg-red-950/40 rounded-lg transition-colors"
+                        >
+                            <Trash2 className="w-4 h-4" />
+                            Delete Account
+                        </button>
+                    </div>
+                ) : (
+                    <div className="space-y-4">
+                        <div className="flex items-start gap-3 bg-red-950/20 border border-red-900/30 rounded-lg px-4 py-3">
+                            <TriangleAlert className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                            <p className="text-xs text-red-400">
+                                This will permanently delete your account, all channels, scans, AI credits, and chat history.
+                                Type your email address below to confirm.
+                            </p>
+                        </div>
+                        <input
+                            type="email"
+                            placeholder={session?.user?.email ?? "your@email.com"}
+                            value={deleteConfirmEmail}
+                            onChange={e => setDeleteConfirmEmail(e.target.value)}
+                            className="w-full bg-[#0c0c0e] border border-[#2a2a30] rounded-lg px-4 py-2.5 text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-red-800"
+                        />
+                        <div className="flex gap-3">
+                            <button
+                                onClick={() => { setShowDeleteZone(false); setDeleteConfirmEmail(""); }}
+                                className="flex-1 py-2.5 rounded-lg border border-[#2a2a30] text-zinc-400 text-sm font-bold hover:bg-[#1e1e22] transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                disabled={isDeleting || deleteConfirmEmail.toLowerCase().trim() !== (session?.user?.email ?? "").toLowerCase()}
+                                onClick={async () => {
+                                    setIsDeleting(true);
+                                    try {
+                                        const res = await fetch("/api/account/delete", {
+                                            method: "DELETE",
+                                            headers: { "Content-Type": "application/json" },
+                                            body: JSON.stringify({ confirmEmail: deleteConfirmEmail }),
+                                        });
+                                        if (!res.ok) {
+                                            const err = await res.text();
+                                            toast.error(err || "Failed to delete account");
+                                            setIsDeleting(false);
+                                            return;
+                                        }
+                                        toast.success("Account deleted. Signing out...");
+                                        await signOut({ callbackUrl: "/auth/signin" });
+                                    } catch {
+                                        toast.error("An unexpected error occurred.");
+                                        setIsDeleting(false);
+                                    }
+                                }}
+                                className="flex-1 py-2.5 rounded-lg bg-red-700 hover:bg-red-600 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-bold transition-colors flex items-center justify-center gap-2"
+                            >
+                                {isDeleting ? <RefreshCw className="w-4 h-4 animate-spin" /> : <><Trash2 className="w-4 h-4" /> Permanently Delete</>}
+                            </button>
+                        </div>
+                    </div>
+                )}
+            </div>
         </div>
     );
 }

@@ -634,9 +634,9 @@ export function CompetitorWatchtower({ channelId }: { channelId: string }) {
             )}
 
             {/* Main Content Area */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="flex flex-col lg:grid lg:grid-cols-3 gap-6">
                 {/* Left: Insights Feed */}
-                <div className="lg:col-span-2 space-y-4">
+                <div className="order-2 lg:order-1 lg:col-span-2 space-y-4">
                     <div className="flex items-center gap-2 mb-2">
                         <TrendingUp className="w-4 h-4 text-amber-500" />
                         <h3 className="text-sm font-bold text-zinc-400 uppercase tracking-widest">Market_Intel_Feed</h3>
@@ -661,7 +661,7 @@ export function CompetitorWatchtower({ channelId }: { channelId: string }) {
                 </div>
 
                 {/* Right: Top Signal & Recommendations */}
-                <div className="space-y-4">
+                <div className="order-1 lg:order-2 space-y-4">
                     <div className="flex items-center gap-2 mb-2">
                         <Zap className="w-4 h-4 text-emerald-500" />
                         <h3 className="text-sm font-bold text-zinc-400 uppercase tracking-widest">Top_Signal</h3>

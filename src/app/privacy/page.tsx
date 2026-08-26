@@ -9,7 +9,7 @@ export default function PrivacyPolicyPage() {
             <div className="max-w-4xl mx-auto px-5 py-24 sm:py-32">
                 <div className="mb-12 border-b border-[#1e1e22] pb-8">
                     <h1 className="text-3xl sm:text-4xl font-bold text-white mb-4 tracking-tight">Privacy Policy</h1>
-                    <p className="text-zinc-500 font-mono text-xs uppercase tracking-widest">Last Updated: May 30, 2026</p>
+                    <p className="text-zinc-500 font-mono text-xs uppercase tracking-widest">Last Updated: August 26, 2026</p>
                 </div>
 
                 <div className="space-y-8 text-sm sm:text-base leading-relaxed text-zinc-400">
@@ -77,15 +77,28 @@ export default function PrivacyPolicyPage() {
                         </p>
                     </section>
 
-                    <section className="space-y-4">
-                        <h2 className="text-xl font-bold text-white tracking-tight">5. Data Retention</h2>
+                    <section className="space-y-4 border-t border-[#1e1e22] pt-8 mt-12">
+                        <h2 className="text-xl font-bold text-white tracking-tight">5. Data Protection Mechanisms</h2>
+                        <p>
+                            We take the security of your sensitive data seriously. We employ industry-standard security measures to protect your information, particularly sensitive data obtained via Google APIs:
+                        </p>
+                        <ul className="list-disc pl-5 space-y-2 text-zinc-500">
+                            <li><strong>Encryption in Transit:</strong> All data transmitted between your browser and our servers, as well as between our servers and Google APIs, is encrypted using secure HTTPS/TLS protocols.</li>
+                            <li><strong>Encryption at Rest:</strong> Sensitive data, including OAuth tokens and user identifiers, is encrypted at rest within our database infrastructure.</li>
+                            <li><strong>Access Controls:</strong> Access to sensitive data is strictly limited to authorized personnel and automated systems necessary for providing the GapTuber service.</li>
+                            <li><strong>Least Privilege:</strong> We request only the minimum required OAuth scopes necessary for GapTuber to function.</li>
+                        </ul>
+                    </section>
+
+                    <section className="space-y-4 border-t border-[#1e1e22] pt-8 mt-12">
+                        <h2 className="text-xl font-bold text-white tracking-tight">6. Data Retention</h2>
                         <p>
                             We retain your connected YouTube data only for as long as necessary to provide the GapTuber service. If you disconnect your channel or delete your GapTuber account, your specific channel OAuth tokens are revoked and deleted from our active databases.
                         </p>
                     </section>
 
                     <section className="space-y-4 border-t border-[#1e1e22] pt-8 mt-12">
-                        <h2 className="text-xl font-bold text-white tracking-tight">6. Contact Us</h2>
+                        <h2 className="text-xl font-bold text-white tracking-tight">7. Contact Us</h2>
                         <p>
                             If you have questions or comments about this Privacy Policy, you may contact us at:{" "}
                             <a href="mailto:hello@aurionstack.dev" className="text-sky-400 hover:text-sky-300">hello@aurionstack.dev</a>

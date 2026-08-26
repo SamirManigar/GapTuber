@@ -235,7 +235,7 @@ Return ONLY the raw JSON object. No markdown. No explanation. Ensure estimatedPr
                 const currentKey = groqKeys[activeGroqKeyIndex % groqKeys.length];
                 activeGroqKeyIndex++;
                 const groqProvider = createGroq({ apiKey: currentKey });
-                const groqModel = groqProvider("llama-3.3-70b-versatile");
+                const groqModel = groqProvider("openai/gpt-oss-120b");
 
                 const { text } = await generateText({ model: groqModel, prompt });
                 

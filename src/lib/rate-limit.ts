@@ -115,22 +115,25 @@ export async function rateLimit(key: string, max: number, windowMs: number): Pro
 /**
  * Rate limit configs for each AI endpoint.
  * Adjust max/windowMs to match your Groq plan.
+ *
+ * Production values below. For local dev, temporarily increase as needed.
+ * TODO: Implement per-tier limits (free vs pro) via middleware that reads user.tier.
  */
 export const RATE_LIMITS = {
-    /** Heavy: full market analysis + AI — 500 per hour (Dev increased) */
-    channelCreation: { max: 500, windowMs: 60 * 60_000 },
-    /** Medium: gap scanner — 200 per hour (Dev increased) */
-    gapScanner: { max: 200, windowMs: 60 * 60_000 },
-    /** Medium: channel analyze — 100 per hour (Dev increased) */
-    channelAnalyze: { max: 100, windowMs: 60 * 60_000 },
-    /** Light: generate ideas — 150 per hour (Dev increased) */
-    generateIdeas: { max: 150, windowMs: 60 * 60_000 },
-    /** Chat: aurabot — 500 per hour (Dev increased) */
-    aurabot: { max: 500, windowMs: 60 * 60_000 },
-    /** Heavy: deep web research + AI — 100 per hour (Dev increased) */
-    webAnalyze: { max: 100, windowMs: 60 * 60_000 },
-    /** Extension: real-time analysis — 500 per hour (Dev increased) */
-    analyze: { max: 500, windowMs: 60 * 60_000 },
-    /** Light: competitor suggestions — 100 per hour (Dev increased) */
-    recommendCompetitors: { max: 100, windowMs: 60 * 60_000 },
+    /** Heavy: full market analysis + AI — 30 per hour */
+    channelCreation: { max: 30, windowMs: 60 * 60_000 },
+    /** Medium: gap scanner — 30 per hour */
+    gapScanner: { max: 30, windowMs: 60 * 60_000 },
+    /** Medium: channel analyze — 30 per hour */
+    channelAnalyze: { max: 30, windowMs: 60 * 60_000 },
+    /** Light: generate ideas — 50 per hour */
+    generateIdeas: { max: 50, windowMs: 60 * 60_000 },
+    /** Chat: aurabot — 100 per hour */
+    aurabot: { max: 100, windowMs: 60 * 60_000 },
+    /** Heavy: deep web research + AI — 20 per hour */
+    webAnalyze: { max: 20, windowMs: 60 * 60_000 },
+    /** Extension: real-time analysis — 100 per hour */
+    analyze: { max: 100, windowMs: 60 * 60_000 },
+    /** Light: competitor suggestions — 30 per hour */
+    recommendCompetitors: { max: 30, windowMs: 60 * 60_000 },
 } as const;

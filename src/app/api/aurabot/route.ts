@@ -14,6 +14,7 @@ import { rateLimit, RATE_LIMITS } from "@/lib/rate-limit";
 import { logger } from "@/lib/logger";
 import * as Sentry from "@sentry/nextjs";
 import { scoreHookStrength } from "@/lib/engine/hookScorer";
+import { env } from "@/env";
 
 export const runtime = "nodejs";
 export const maxDuration = 300; // Fluid Compute: 5 minute max on Vercel Hobby plan
@@ -292,13 +293,13 @@ export async function POST(req: NextRequest) {
         let result;
 
         if (hasImages) {
-            // Vision lane: Gemini 1.5 Flash (Optimized for detailed visual analysis and has free tier)
-            if (!process.env.GEMINI_API_KEY) {
+            // Vision lane: Gemini 2.5 Flash (Optimized for detailed visual analysis)
+            if (!env.GEMINI_API_KEY) {
                 return NextResponse.json({ error: "Gemini API key not configured for Vision" }, { status: 503 });
             }
 
             modelLabel = "Gemini 2.5 Flash (Multimodal)";
-            const google = createGoogleGenerativeAI({ apiKey: process.env.GEMINI_API_KEY });
+            const google = createGoogleGenerativeAI({ apiKey: env.GEMINI_API_KEY });
 
             const userContent: any[] = [{ type: "text", text: textContent }];
             imageParts.forEach(part => userContent.push({ type: "image", image: part.data, mimeType: part.mimeType }));
@@ -316,9 +317,9 @@ export async function POST(req: NextRequest) {
         } else {
             // Text lane: Llama 3.3 70B (Key-rotated for resilience)
             const keys = [
-                process.env.GROQ_API_KEY,
-                process.env.GROQ_API_KEY_2,
-                process.env.GROQ_API_KEY_3
+                env.GROQ_API_KEY,
+                env.GROQ_API_KEY_2,
+                env.GROQ_API_KEY_3
             ].filter(Boolean) as string[];
 
             if (keys.length === 0) {
@@ -332,7 +333,7 @@ export async function POST(req: NextRequest) {
             modelLabel = "Llama 3.3 70B (Groq)";
 
             result = streamText({
-                model: groq("llama-3.3-70b-versatile"),
+                model: groq("openai/gpt-oss-120b"),
                 system: systemPrompt,
                 messages: [
                     ...conversationHistory,

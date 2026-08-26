@@ -519,7 +519,7 @@ export function DashboardSidebar({ session, user, allChannels, activeChannel: de
                 </div>
             </aside>
             <CreditHistoryModal isOpen={isHistoryOpen} onClose={() => setIsHistoryOpen(false)} />
-            <PricingModal isOpen={isPricingOpen} onClose={() => setIsPricingOpen(false)} />
+            <PricingModal isOpen={isPricingOpen} onClose={() => setIsPricingOpen(false)} currentTier={user?.tier ?? "free"} />
         </>
     );
 }

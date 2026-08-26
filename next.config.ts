@@ -23,16 +23,24 @@ const nextConfig: NextConfig = {
     const isProd = process.env.NODE_ENV === "production";
     const csp = [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' https://www.youtube.com",
+      // Razorpay checkout.js + Lemon Squeezy scripts allowed
+      "script-src 'self' 'unsafe-inline' https://www.youtube.com https://checkout.razorpay.com https://app.lemonsqueezy.com",
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "font-src 'self' https://fonts.gstatic.com",
-      "img-src 'self' data: blob: https://lh3.googleusercontent.com https://i.ytimg.com https://yt3.ggpht.com https://aurionstack.dev",
-      "connect-src 'self' https://*.sentry.io https://*.upstash.io https://*.ingest.sentry.io wss://*.neon.tech https://*.neon.tech https://api.groq.com",
-      "frame-src https://www.youtube.com",
+      "img-src 'self' data: blob: https://lh3.googleusercontent.com https://i.ytimg.com https://yt3.ggpht.com https://aurionstack.dev https://api.razorpay.com",
+      // Allow API calls to payment gateways + existing services
+      "connect-src 'self' https://*.sentry.io https://*.upstash.io https://*.ingest.sentry.io wss://*.neon.tech https://*.neon.tech https://api.groq.com https://api.razorpay.com https://checkout.razorpay.com https://api.lemonsqueezy.com",
+      // Allow Razorpay modal iframe + YouTube
+      "frame-src https://www.youtube.com https://api.razorpay.com https://checkout.razorpay.com https://app.lemonsqueezy.com",
       "media-src 'self'",
       "object-src 'none'",
       "base-uri 'self'",
+      // Prevent clickjacking via form submissions to external sites
+      "form-action 'self'",
+      // Prevent MIME type sniffing attacks
+      "upgrade-insecure-requests",
     ].join("; ");
+
 
     return [
       {

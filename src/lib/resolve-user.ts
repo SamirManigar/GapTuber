@@ -14,21 +14,30 @@ export async function resolveUserFromRequest(req: NextRequest) {
         // auth() might throw in some Edge contexts, fallback
     }
 
-    // 2. Try explicit X-Session-Cookie from Chrome Extension
+    // 2. Try explicit X-Session-Cookie or X-Session-Token from Chrome Extension
     if (!userEmail) {
-        const cookieValue = req.headers.get("X-Session-Cookie");
+        const cookieValue = req.headers.get("X-Session-Cookie") || req.headers.get("X-Session-Token");
         if (cookieValue) {
-            try {
-                const token = await decode({
-                    token: cookieValue,
-                    salt: "authjs.session-token",
-                    secret: process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET ?? ""
-                });
-                if (token?.email) {
-                    userEmail = token.email as string;
+            const salts = [
+                "__Secure-authjs.session-token",
+                "authjs.session-token",
+                "__Secure-next-auth.session-token",
+                "next-auth.session-token"
+            ];
+            for (const salt of salts) {
+                try {
+                    const token = await decode({
+                        token: cookieValue,
+                        salt,
+                        secret: process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET ?? ""
+                    });
+                    if (token?.email) {
+                        userEmail = token.email as string;
+                        break;
+                    }
+                } catch (e) {
+                    // ignore and try next salt
                 }
-            } catch (e) {
-                console.error("[resolveUserFromRequest] JWT decode error:", e);
             }
         }
     }

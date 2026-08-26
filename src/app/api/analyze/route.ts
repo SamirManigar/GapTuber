@@ -8,6 +8,7 @@ import { db } from "@/db";
 import { scans } from "@/db/schema";
 import { getUserByEmail, getChannelsByUserId, deductUserCredits } from "@/db/queries";
 import { resolveUserFromRequest } from "@/lib/resolve-user";
+import { env } from "@/env";
 import {
     buildGapCandidates,
     computeVelocityScore,
@@ -194,9 +195,9 @@ export async function POST(req: NextRequest) {
         const prompt = buildAnalysisPrompt(input.keyword, candidates, competitorTitles, verbatimPainPoints);
 
         const keys = [
-            process.env.GROQ_API_KEY,
-            process.env.GROQ_API_KEY_2,
-            process.env.GROQ_API_KEY_3
+            env.GROQ_API_KEY,
+            env.GROQ_API_KEY_2,
+            env.GROQ_API_KEY_3
         ].filter(Boolean) as string[];
 
         if (keys.length === 0) {
@@ -216,7 +217,7 @@ export async function POST(req: NextRequest) {
             try {
                 const groq = createGroq({ apiKey: activeKey });
                 const result = await generateText({
-                    model: groq("llama-3.3-70b-versatile"),
+                    model: groq("openai/gpt-oss-120b"),
                     messages: [
                         { role: "system", content: "You are an expert YouTube strategist. Explain this like I am a tired YouTuber, not a marketing executive. You are strictly forbidden from using words like: leverage, unlock, dive deep, landscape, synergy, dynamic, or comprehensive. Respond ONLY with valid JSON matching the schema exactly. No markdown, no explanation." },
                         { role: "user", content: prompt }

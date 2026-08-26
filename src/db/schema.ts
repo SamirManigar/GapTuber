@@ -7,6 +7,12 @@ export const users = pgTable("users", {
     image: text("image"),
     credits: integer("credits").default(20).notNull(),
     tier: text("tier").default("free").notNull(),
+    lsCustomerId: text("ls_customer_id"),
+    lsSubscriptionId: text("ls_subscription_id"),
+    lsOrderId: text("ls_order_id"),
+    razorpayCustomerId: text("razorpay_customer_id"),
+    razorpaySubscriptionId: text("razorpay_subscription_id"),
+    razorpayOrderId: text("razorpay_order_id"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

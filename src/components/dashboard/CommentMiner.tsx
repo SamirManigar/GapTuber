@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
-import { Pickaxe, Sparkles, Database, Loader2, CheckCircle2, AlertCircle, ArrowRight, Coins, Zap } from "lucide-react";
+import { Pickaxe, Sparkles, Database, Loader2, CheckCircle2, AlertCircle, ArrowRight, Coins, Zap, Target, Eye, MessageSquareText } from "lucide-react";
 
 interface MinedIdea {
     title: string;
@@ -160,29 +161,53 @@ export function CommentMiner({ channelId }: { channelId: string }) {
                             <motion.div 
                                 initial={{ opacity: 0, x: 20 }}
                                 animate={{ opacity: 1, x: 0 }}
-                                className="bg-emerald-500/5 border border-emerald-500/20 rounded-2xl p-6 h-[240px] overflow-hidden flex flex-col"
+                                className="bg-[#111113]/80 border border-emerald-500/30 rounded-2xl p-6 max-h-[600px] flex flex-col shadow-[0_0_40px_rgba(16,185,129,0.1)]"
                             >
-                                <div className="flex items-center gap-2 mb-4">
-                                    <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                                    <span className="text-[10px] font-mono text-emerald-400 uppercase tracking-widest font-bold">{result.length}_Gems_Discovered</span>
+                                <div className="flex items-center justify-between mb-4 shrink-0">
+                                    <div className="flex items-center gap-2">
+                                        <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+                                        <span className="text-xs font-mono text-emerald-400 uppercase tracking-widest font-bold">{result.length}_Gems_Discovered</span>
+                                    </div>
+                                    <Link 
+                                        href={`/dashboard/vault?channelId=${channelId}`}
+                                        className="text-[10px] bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 px-3 py-1.5 rounded-full border border-emerald-500/20 flex items-center gap-1.5 transition-colors font-bold uppercase tracking-widest"
+                                    >
+                                        View in Vault <ArrowRight className="w-3 h-3" />
+                                    </Link>
                                 </div>
+                                
                                 {message && (
-                                    <div className="mb-3 px-3 py-2 bg-amber-500/10 border border-amber-500/20 rounded-lg text-[10px] font-mono text-amber-400">
-                                        <AlertCircle className="w-3 h-3 inline-block mr-1.5 -mt-0.5" />
+                                    <div className="mb-4 px-3 py-2 bg-amber-500/10 border border-amber-500/20 rounded-lg text-xs font-mono text-amber-400 shrink-0">
+                                        <AlertCircle className="w-4 h-4 inline-block mr-1.5 -mt-0.5" />
                                         {message}
                                     </div>
                                 )}
-                                <div className="space-y-3 flex-1 overflow-y-auto pr-2 custom-scrollbar">
+                                
+                                <div className="space-y-4 flex-1 overflow-y-auto pr-2 custom-scrollbar">
                                     {result.map((idea, i) => (
-                                        <div key={i} className="p-3 bg-black/40 border border-emerald-500/10 rounded-lg group/item hover:border-emerald-500/30 transition-colors">
-                                            <p className="text-[10px] text-zinc-500 font-mono mb-1">DISCOVERY_{i+1}</p>
-                                            <h4 className="text-[13px] font-bold text-white line-clamp-1">{idea.title}</h4>
+                                        <div key={i} className="p-4 bg-[#0a0a0c] border border-zinc-800 rounded-xl group/item hover:border-emerald-500/30 transition-colors">
+                                            <div className="flex items-start justify-between gap-4 mb-2">
+                                                <h4 className="text-sm font-bold text-white leading-tight">{idea.title}</h4>
+                                                <span className={`text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full border shrink-0 ${
+                                                    idea.estimatedViewPotential === 'high' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
+                                                    idea.estimatedViewPotential === 'medium' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
+                                                    'bg-blue-500/10 text-blue-400 border-blue-500/20'
+                                                }`}>
+                                                    <Eye className="w-3 h-3 inline mr-1 -mt-0.5" />
+                                                    {idea.estimatedViewPotential}
+                                                </span>
+                                            </div>
+                                            
+                                            <p className="text-xs text-zinc-400 mb-3 line-clamp-2">
+                                                <strong className="text-zinc-300">Hook:</strong> {idea.hook}
+                                            </p>
+                                            
+                                            <div className="flex flex-wrap gap-2 text-[10px] font-mono text-zinc-500">
+                                                <span className="bg-[#1a1a1e] px-2 py-1 rounded flex items-center gap-1"><MessageSquareText className="w-3 h-3" /> {idea.format}</span>
+                                                <span className="bg-[#1a1a1e] px-2 py-1 rounded flex items-center gap-1"><Target className="w-3 h-3" /> {idea.targetAudience}</span>
+                                            </div>
                                         </div>
                                     ))}
-                                </div>
-                                <div className="pt-4 border-t border-emerald-500/10 mt-auto flex items-center justify-between">
-                                    <span className="text-[10px] text-zinc-500 font-mono uppercase tracking-widest">Sent_To_Vault</span>
-                                    <ArrowRight className="w-3 h-3 text-zinc-500" />
                                 </div>
                             </motion.div>
                         )}

@@ -146,7 +146,7 @@ Based *only* on what is clearly working for this creator right now, generate 5 n
                     try {
                         const groq = createGroq({ apiKey: activeKey });
                         const result = await generateText({
-                            model: groq("llama-3.3-70b-versatile"),
+                            model: groq("openai/gpt-oss-120b"),
                             messages: [
                                 { role: "system", content: "You must output ONLY valid JSON that strictly matches the required schema. No markdown fences, no explanatory text." },
                                 { role: "user", content: prompt + `\n\nREQUIRED JSON SCHEMA:\n${JSON.stringify({ videoIdeas: [{ title: "string", hook: "string (first 10 seconds script hook)", format: "string (e.g. Tutorial, Vlog, Deep Dive)", whyItWorks: "string (why this fits the creator's current audience)", estimatedViewPotential: "high|medium|low", targetAudience: "string" }] }, null, 2)}` }
