@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>GapTuber — YouTube Intelligence</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{width:100%;min-height:100vh;overflow-y:auto;font-family:"Inter",system-ui,sans-serif;background:#0c0c0e;color:#e4e4e7;font-size:12.5px;text-rendering:optimizeLegibility;-webkit-font-smoothing:antialiased;}
+::-webkit-scrollbar{width:8px;height:8px}
+::-webkit-scrollbar-track{background:#0c0c0e}
+::-webkit-scrollbar-thumb{background:#2a2a30;border-radius:4px;border:2px solid #0c0c0e}
+::-webkit-scrollbar-thumb:hover{background:#3f3f46}
+
+/* Header */
+.header{background:#111113;border-bottom:1px solid #1e1e22;padding:9px 14px;display:flex;align-items:center;justify-content:space-between;position:fixed;top:0;left:0;right:0;z-index:200;height:46px}
+.logo-row{display:flex;align-items:center;gap:8px}
+.brand-name{font-size:13px;font-weight:800;color:#fff;letter-spacing:-.3px}
+.brand-sub{font-size:8px;color:#34d399;font-weight:700;letter-spacing:.12em;text-transform:uppercase;display:block;font-family:"JetBrains Mono",monospace}
+.header-right{display:flex;align-items:center;gap:6px}
+.auth-dot{width:7px;height:7px;border-radius:50%;background:#2a2a30;flex-shrink:0}
+.auth-dot.online{background:#34d399}
+.dash-btn{display:inline-flex;align-items:center;gap:5px;background:rgba(52,211,153,.08);border:1px solid rgba(52,211,153,.22);color:#34d399;font-size:9px;font-weight:700;padding:4px 10px;border-radius:20px;cursor:pointer;letter-spacing:.05em;font-family:"JetBrains Mono",monospace;text-decoration:none;transition:background .15s,border-color .15s;white-space:nowrap}
+.dash-btn:hover{background:rgba(52,211,153,.16);border-color:#34d399}
+
+/* Tab Nav */
+.tab-nav{display:flex;background:#0d0d10;border-bottom:1px solid #1e1e22;overflow-x:auto;scrollbar-width:none;position:fixed;top:46px;left:0;right:0;z-index:199;height:38px}
+.tab-nav::-webkit-scrollbar{display:none}
+.tab-btn{flex:1;min-width:55px;padding:7px 4px 6px;background:none;border:none;border-bottom:2px solid transparent;color:#52525b;font-size:9px;font-weight:700;cursor:pointer;transition:all .15s;display:flex;flex-direction:column;align-items:center;gap:2px;letter-spacing:.04em;text-transform:uppercase;font-family:monospace}
+.tab-btn .tab-icon{font-size:13px}
+.tab-btn:hover{color:#a1a1aa;background:rgba(255,255,255,.02)}
+.tab-btn.active{color:#34d399;border-bottom-color:#34d399;background:rgba(52,211,153,.04)}
+
+/* Scrollable content wrapper — offset below fixed header (46px) + tab-nav (38px) */
+.main-scroll{padding-top:84px;overflow-y:auto;height:100vh;width:100%}
+
+/* Tab Content */
+.tab-content{display:none;padding:12px 14px}
+.tab-content.active{display:block}
+
+/* Section Label */
+.field-label{font-size:9px;font-weight:700;color:#52525b;text-transform:uppercase;letter-spacing:.08em;margin-bottom:5px;display:flex;align-items:center;gap:4px;font-family:monospace}
+
+/* Inputs */
+input[type=text],input[type=url],textarea{width:100%;background:#111113;border:1px solid #1e1e22;border-radius:8px;padding:8px 11px;font-size:12px;color:#e4e4e7;outline:none;transition:border-color .15s,box-shadow .15s;font-family:inherit}
+input:focus,textarea:focus{border-color:#34d399;box-shadow:0 0 0 3px rgba(52,211,153,.1)}
+input::placeholder,textarea::placeholder{color:#3f3f46}
+textarea{resize:vertical;min-height:70px}
+.field-group{margin-bottom:10px}
+.input-note{font-size:9px;color:#34d399;margin-top:3px;font-family:monospace;font-weight:600}
+
+/* Buttons */
+.btn-primary{width:100%;background:linear-gradient(135deg,#059669,#10b981);color:#fff;border:none;border-radius:8px;padding:10px;font-size:12.5px;font-weight:700;cursor:pointer;transition:opacity .15s,transform .1s;display:flex;align-items:center;justify-content:center;gap:6px;margin-top:8px;letter-spacing:.01em}
+.btn-primary:hover{opacity:.9}
+.btn-primary:active{transform:scale(.98)}
+.btn-primary:disabled{background:#1e1e22;cursor:not-allowed;opacity:.5;color:#52525b}
+.btn-secondary{background:#111113;border:1px solid #1e1e22;color:#71717a;border-radius:7px;padding:6px 12px;font-size:10px;font-weight:600;cursor:pointer;transition:all .12s;font-family:monospace}
+.btn-secondary:hover{border-color:#34d399;color:#34d399}
+
+/* Loading/Error */
+.loading-state{background:rgba(52,211,153,.05);border:1px solid rgba(52,211,153,.15);border-radius:10px;padding:20px;text-align:center;margin:8px 0}
+.spinner{width:22px;height:22px;border:2px solid rgba(52,211,153,.2);border-top-color:#34d399;border-radius:50%;animation:spin .7s linear infinite;margin:0 auto 10px}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes fadeIn{from{opacity:0;transform:translateX(-50%) translateY(-6px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
+.loading-text{color:#34d399;font-size:11.5px;font-weight:700;font-family:monospace}
+.loading-sub{color:#52525b;font-size:10.5px;margin-top:3px}
+.loading-steps{margin-top:10px;text-align:left}
+.loading-step{display:flex;align-items:center;gap:6px;font-size:10px;color:#3f3f46;margin:3px 0;font-family:monospace}
+.loading-step.done{color:#34d399}
+.loading-step.active{color:#a1a1aa}
+.step-dot{width:5px;height:5px;border-radius:50%;background:currentColor;flex-shrink:0}
+.error-state{background:rgba(239,68,68,.07);border:1px solid rgba(239,68,68,.2);border-radius:8px;padding:10px 12px;color:#f87171;font-size:11.5px;font-weight:500;margin:8px 0}
+.success-banner{background:rgba(52,211,153,.08);border:1px solid rgba(52,211,153,.2);border-radius:8px;padding:8px 12px;color:#34d399;font-size:11px;margin-bottom:8px;display:flex;align-items:center;gap:6px}
+
+/* Cards */
+.card{background:#111113;border:1px solid #1e1e22;border-radius:10px;padding:10px 12px;margin-bottom:8px}
+.card-title{font-weight:700;font-size:11.5px;color:#f4f4f5;line-height:1.35;font-family:monospace;text-transform:uppercase;letter-spacing:.04em}
+
+/* Score Bars */
+.score-item{display:flex;align-items:center;gap:7px;margin:3px 0}
+.score-label{font-size:9px;color:#52525b;font-weight:700;text-transform:uppercase;letter-spacing:.04em;width:62px;flex-shrink:0;font-family:monospace}
+.score-track{flex:1;height:4px;background:#1e1e22;border-radius:2px;overflow:hidden}
+.score-fill{height:100%;border-radius:2px;transition:width .5s ease}
+.fill-emerald{background:linear-gradient(90deg,#059669,#34d399)}
+.fill-blue{background:linear-gradient(90deg,#2563eb,#60a5fa)}
+.fill-amber{background:linear-gradient(90deg,#d97706,#fbbf24)}
+.fill-red{background:linear-gradient(90deg,#dc2626,#f87171)}
+.fill-purple{background:linear-gradient(90deg,#7c3aed,#a78bfa)}
+.score-pct{font-size:9px;font-weight:700;color:#71717a;width:26px;text-align:right;flex-shrink:0;font-family:monospace}
+
+/* Metrics Grid */
+.metrics-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin-bottom:10px}
+.metric-card{background:#111113;border:1px solid #1e1e22;border-radius:8px;padding:8px 6px;text-align:center}
+.metric-value{font-size:17px;font-weight:800;color:#34d399;line-height:1;font-family:monospace}
+.metric-label{font-size:8.5px;color:#3f3f46;text-transform:uppercase;letter-spacing:.05em;margin-top:3px;font-family:monospace}
+.metric-sub{font-size:7.5px;color:#52525b;letter-spacing:.03em;margin-top:1px;font-family:monospace}
+
+/* Section Divider */
+.section-divider{font-size:9px;font-weight:700;color:#3f3f46;margin:10px 0 6px;text-transform:uppercase;letter-spacing:.07em;display:flex;align-items:center;gap:6px;font-family:monospace}
+.section-divider::after{content:"";flex:1;height:1px;background:#1e1e22}
+
+/* Badges */
+.badge{font-size:8px;font-weight:700;padding:2px 7px;border-radius:20px;white-space:nowrap;flex-shrink:0;font-family:monospace}
+.badge-green{background:rgba(52,211,153,.12);color:#34d399;border:1px solid rgba(52,211,153,.25)}
+.badge-amber{background:rgba(251,191,36,.1);color:#fbbf24;border:1px solid rgba(251,191,36,.25)}
+.badge-red{background:rgba(239,68,68,.1);color:#f87171;border:1px solid rgba(239,68,68,.25)}
+
+/* Gap Cards */
+.gap-card{background:#111113;border:1px solid #1e1e22;border-radius:10px;overflow:hidden;margin-bottom:8px;transition:border-color .15s}
+.gap-card:hover{border-color:#2a2a30}
+.gap-card-header{background:#18181b;padding:7px 12px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #1e1e22}
+.gap-label{color:#52525b;font-size:9px;font-weight:700;font-family:monospace;text-transform:uppercase;letter-spacing:.06em}
+.gap-score-badge{background:rgba(52,211,153,.15);color:#34d399;font-size:12px;font-weight:800;padding:2px 8px;border-radius:20px;font-family:monospace}
+.gap-body{padding:10px 12px}
+.gap-title{font-weight:700;font-size:12.5px;color:#f4f4f5;margin-bottom:6px;line-height:1.4}
+.gap-hook{background:rgba(52,211,153,.06);border:1px solid rgba(52,211,153,.15);border-radius:7px;padding:6px 9px;margin-bottom:7px}
+.hook-label{font-size:8px;font-weight:800;color:#34d399;text-transform:uppercase;letter-spacing:.07em;margin-bottom:2px;font-family:monospace}
+.hook-text{font-size:10.5px;color:#a1a1aa;font-style:italic;line-height:1.5}
+.gap-meta-grid{display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:6px}
+.gap-meta-item{background:#18181b;border-radius:6px;padding:5px 8px;border:1px solid #1e1e22}
+.gap-meta-label{font-size:8px;font-weight:700;color:#3f3f46;text-transform:uppercase;margin-bottom:1px;font-family:monospace}
+.gap-meta-value{font-size:10px;color:#71717a;line-height:1.35}
+
+/* Keyword Cards */
+.kw-card{background:#111113;border:1px solid #1e1e22;border-radius:9px;padding:9px 11px;margin-bottom:6px;cursor:pointer;transition:border-color .15s}
+.kw-card:hover{border-color:#34d399}
+.kw-card-header{display:flex;align-items:flex-start;justify-content:space-between;gap:6px;margin-bottom:6px}
+.kw-name{font-weight:700;font-size:11.5px;color:#e4e4e7;flex:1}
+.kw-reasoning{font-size:10px;color:#52525b;line-height:1.4;margin-top:4px}
+.kw-hook{background:rgba(52,211,153,.06);border:1px solid rgba(52,211,153,.15);border-radius:6px;padding:5px 8px;margin-top:5px;font-size:10px;color:#6ee7b7;font-style:italic;line-height:1.4}
+.kw-chip{display:inline-flex;align-items:center;gap:4px;background:#111113;border:1px solid #1e1e22;border-radius:20px;padding:3px 9px;font-size:10px;color:#71717a;cursor:pointer;transition:all .12s;margin:2px}
+.kw-chip:hover{border-color:#34d399;color:#34d399}
+.kw-chip-add{color:#34d399;font-weight:700}
+#keywordChips{display:flex;flex-wrap:wrap;margin-top:5px}
+
+/* Tag chips */
+.tag-chip{display:inline-block;background:#18181b;border:1px solid #1e1e22;border-radius:5px;padding:2px 8px;font-size:10px;color:#71717a;cursor:pointer;transition:all .12s;margin:2px;font-family:monospace}
+.tag-chip:hover{border-color:#34d399;color:#34d399}
+.tag-chip.copied{background:rgba(52,211,153,.1);border-color:#34d399;color:#34d399}
+.tags-container{display:flex;flex-wrap:wrap;margin:4px 0}
+
+/* Revenue */
+.revenue-card{background:linear-gradient(135deg,rgba(5,150,105,.08),rgba(16,185,129,.04));border:1px solid rgba(52,211,153,.2);border-radius:10px;padding:12px 14px;margin-bottom:8px;text-align:center}
+.revenue-range{font-size:20px;font-weight:800;color:#34d399;font-family:monospace;margin:4px 0}
+.revenue-label{font-size:10px;color:#52525b;margin-top:3px}
+
+/* Competitor Cards */
+.competitor-card{background:#111113;border:1px solid #1e1e22;border-radius:8px;padding:8px 10px;margin-bottom:5px;display:flex;align-items:center;gap:8px}
+.competitor-handle{font-weight:700;font-size:11.5px;color:#34d399;flex-shrink:0;font-family:monospace}
+.competitor-reason{font-size:10px;color:#52525b;flex:1;line-height:1.35}
+.overlap-pct{font-size:10px;font-weight:700;color:#3f3f46;flex-shrink:0;font-family:monospace}
+.add-btn{font-size:9px;font-weight:700;color:#34d399;background:rgba(52,211,153,.08);border:1px solid rgba(52,211,153,.2);border-radius:5px;padding:2px 7px;cursor:pointer;flex-shrink:0;transition:background .12s;font-family:monospace}
+.add-btn:hover{background:rgba(52,211,153,.15)}
+.analyze-btn{font-size:9px;font-weight:700;color:#818cf8;background:rgba(99,102,241,.08);border:1px solid rgba(99,102,241,.2);border-radius:5px;padding:2px 7px;cursor:pointer;flex-shrink:0;transition:background .12s;font-family:monospace}
+.analyze-btn:hover{background:rgba(99,102,241,.18)}
+
+/* Action Items */
+.action-item{display:flex;gap:8px;padding:6px 0;border-bottom:1px solid #1e1e22;align-items:flex-start}
+.action-num{font-size:10px;font-weight:800;color:#34d399;font-family:monospace;flex-shrink:0;min-width:16px}
+.action-text{font-size:11px;color:#71717a;line-height:1.45;flex:1}
+
+/* Pain Points */
+.pain-point{display:inline-block;background:rgba(239,68,68,.07);border:1px solid rgba(239,68,68,.2);color:#f87171;border-radius:5px;padding:2px 8px;font-size:10px;margin:2px;font-family:monospace}
+
+/* SEO ring */
+.seo-score-ring{width:76px;height:76px;margin:0 auto 8px;display:flex;align-items:center;justify-content:center;border-radius:50%;border:3px solid #1e1e22;position:relative}
+.seo-score-value{font-size:22px;font-weight:800;color:#34d399;font-family:monospace;line-height:1}
+.seo-score-label{font-size:8.5px;color:#3f3f46;text-align:center;font-family:monospace;text-transform:uppercase;letter-spacing:.06em}
+.issue-item{display:flex;align-items:flex-start;gap:6px;padding:5px 0;border-bottom:1px solid #1e1e22;font-size:10.5px}
+.suggestion-item{display:flex;gap:6px;padding:4px 0;border-bottom:1px solid #1e1e22;font-size:10.5px;color:#71717a}
+
+/* View Full Dash */
+.view-all{display:block;text-align:center;padding:9px;background:#111113;border:1px solid #1e1e22;border-radius:8px;color:#34d399;font-size:11px;font-weight:700;text-decoration:none;margin-top:10px;font-family:monospace;letter-spacing:.04em;transition:border-color .15s}
+.view-all:hover{border-color:#34d399}
+
+/* Niche badge */
+.niche-badge{display:inline-flex;align-items:center;gap:5px;background:rgba(52,211,153,.08);border:1px solid rgba(52,211,153,.2);color:#34d399;font-size:10px;font-weight:700;padding:3px 10px;border-radius:20px;margin-bottom:8px;font-family:monospace}
+.channel-summary{font-size:11px;color:#71717a;line-height:1.55;margin-bottom:10px;padding:8px 10px;background:#111113;border:1px solid #1e1e22;border-radius:8px}
+.ai-tag{font-size:8px;font-weight:600;color:#52525b;font-family:monospace}
+
+/* gap-index */
+.gap-index-card{background:#111113;border:1px solid #1e1e22;border-radius:9px;padding:9px 11px;margin-bottom:6px}
+.gap-index-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:5px}
+.gap-index-name{font-weight:700;font-size:11.5px;color:#e4e4e7}
+.opportunity-score{font-size:13px;font-weight:800;color:#34d399;font-family:monospace}
+.gap-insight{font-size:10px;color:#52525b;line-height:1.4;margin-top:4px}
+
+/* Sentiment */
+.sentiment-row{display:flex;gap:5px;margin-bottom:8px}
+.sentiment-item{flex:1;background:#111113;border:1px solid #1e1e22;border-radius:8px;padding:7px 5px;text-align:center}
+.sentiment-pct{font-size:15px;font-weight:800;font-family:monospace}
+.sentiment-label{font-size:9px;color:#3f3f46;margin-top:2px;font-family:monospace}
+.sentiment-frustrated{color:#f87171}
+.sentiment-neutral{color:#71717a}
+.sentiment-positive{color:#34d399}
+
+/* Outline list */
+.outline-list{background:#18181b;border:1px solid #1e1e22;border-radius:7px;padding:7px 9px;margin-top:6px}
+.outline-item{display:flex;gap:6px;padding:3px 0;font-size:10px;color:#71717a;border-bottom:1px solid #1e1e22;align-items:flex-start}
+.outline-item:last-child{border-bottom:none}
+.outline-num{color:#34d399;font-weight:700;font-family:monospace;flex-shrink:0}
+
+/* Auth notice */
+.auth-notice{background:rgba(251,191,36,.07);border:1px solid rgba(251,191,36,.2);border-radius:8px;padding:8px 12px;margin-bottom:8px;display:flex;align-items:center;gap:8px;font-size:10.5px;color:#fbbf24}
+.auth-notice a{color:#fbbf24;text-decoration:underline}
+
+/* History Cards */
+.history-card{background:#111113;border:1px solid #1e1e22;border-radius:10px;padding:10px 12px;margin-bottom:8px;cursor:pointer;transition:border-color .15s,background .15s}
+.history-card:hover{border-color:#34d399;background:rgba(52,211,153,.03)}
+.history-card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:5px}
+.history-channel{font-weight:700;font-size:12px;color:#f4f4f5;font-family:monospace;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.history-date{font-size:9px;color:#3f3f46;font-family:monospace;flex-shrink:0}
+.history-niche{font-size:9px;color:#34d399;background:rgba(52,211,153,.08);border:1px solid rgba(52,211,153,.15);border-radius:10px;padding:1px 7px;font-family:monospace;white-space:nowrap}
+.history-meta{display:flex;gap:8px;font-size:10px;color:#52525b;font-family:monospace;flex-wrap:wrap}
+.history-empty{text-align:center;padding:30px 16px;color:#3f3f46;font-size:11px;font-family:monospace}
+
+/* Track keyword button */
+.track-btn{display:flex;align-items:center;gap:5px;background:rgba(99,102,241,.08);border:1px solid rgba(99,102,241,.2);color:#818cf8;font-size:10px;font-weight:700;padding:6px 12px;border-radius:7px;cursor:pointer;width:100%;justify-content:center;margin-top:6px;transition:background .15s;font-family:monospace;letter-spacing:.03em}
+.track-btn:hover{background:rgba(99,102,241,.16)}
+.track-btn.tracked{background:rgba(52,211,153,.08);border-color:rgba(52,211,153,.25);color:#34d399}
+
+/* A/B comparison table */
+.ab-table{width:100%;border-collapse:collapse;margin-top:6px;font-size:10.5px}
+.ab-table th{text-align:left;color:#3f3f46;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:4px 8px;border-bottom:1px solid #1e1e22;font-family:monospace}
+.ab-table td{padding:6px 8px;border-bottom:1px solid #1e1e22;color:#71717a;vertical-align:top;line-height:1.45}
+.ab-table td:first-child{color:#f87171;font-size:9px;font-weight:700;text-transform:uppercase;font-family:monospace;white-space:nowrap}
+.ab-winner{color:#34d399!important;background:rgba(52,211,153,.04)}
+</style>
+  <script type="module" crossorigin src="/sidebar.js"></script>
+</head>
+<body>
+
+<!-- Header -->
+<div class="header">
+  <div class="logo-row">
+    <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADAAAAAwCAYAAABXAvmHAAAACXBIWXMAAAsTAAALEwEAmpwYAAAE4UlEQVR4nO1aX0wURxi/J7yd3Z3Z+wOHgFCFw0IhAcO11ZrWphCIphEtDW19qCm2PJRq0quaUgRsQnwipjGAUYkxGpvGxDZUBZpIbaKAfVGwacI9SW1ULgRIhEIO7r5mFiHn7eze7nHYW9NJ5ml25vv9Zn7zzc73jcXCKElJYi7HkaMIkd85jjxGiIQQImCkEuKEgwcPw9TUFCyVBw/+hn37avWOEXpq+zbFQjFZohW73Y45Dp9GiMwbBRxed+16H3w+H6iVGzd+A49ns9FxKaaTDodDZIK3WqUsjsN/rAR4UZEHent/AT1lYWEBTp06AxkZ6w3Z4Dh8z2q1ZT4DnrLiODwcK/C1azPhxIl2CAQCCqAzM/9AS8sxOHfuPASDQUX75OQkeL2HAGOHARLkT5vNRpYJPJWNYeCCYJM17ff7mbN87Vo35OUVLn+/ZcubcPNmP/Nbn88nS8+A/Q4ZvCiKG2PRfHn5DhgevscEc+fOXSgtLVftW1VVDffvjzL79vX9Cps2vaZrTyQliW4Lx5FvjQDPzc2Hixe/ZxofHx+XPY8o2qOO43SmQkNDEzx5Mq0Yh0qxra0DXK6MaFJqtlA3pQc4NUi1PDs7a9igUJIPvPslZpvbnSdPSCgUimVCBukK+LWA87wk6/zhw0fMWe/qugIFBUXsvuvSAddXg9TTDNLVRhC/2AnImaIiye0wNDSsGJ/aTUlJU1uBx3QFgmrgt27dBgMDg0zgIyMjUFlZxQZuc4BYUwGk6whIvUefrT8cAuHdNwDxkqpTGBsbW7ZTU6N58AUtrIbs7I3Q2XlW1e3RZVVze8JbxUDOe5XAIyrp+ByEkjxVt9zaelyePEpKSyEKApTx9PSMAvj8/Dy0t5+E9HS2lvkCN+Djn7HBdu6XZ17R1tMsS4xKjTWmHmegIEAPnMhy/XqfumtzpcralrqblAAvfw3CnlJA2A683QniJxUgXVHKinQdkduQpP8w00Vgbm5O9tnMztgO4gdvg3S5Xgm8uwnEL3cDSk1V9stZD/jYXra0zh4ARBzxIzAxMcGWy+uFQM7sZ4LArZ8Cn58T1TBrDLFup4Is//KG+BHgN2QBbvmYrfMLXhBKS4xJANtB+OgdkH76BqRLhwEluxbthMkt2piGCIi1O9j63Vsuu06j+kVLE5OWBrznFdm1Cts3Awnb8KtKQGz4EPhM7eNeN4nCXMDf1SomaFUJIFHbR+udfex9b/G0ZkgzcQlQL1a9bVH/GgdeQhLQ8mJSIhPgs7MAN+7RBVxKJAJap7CU0ASoWyzzALnwlWHg0v8EIP4SIj+bTULoBdnE6EVxo4h1kP1Yb1ICkReinv/gV8L0P3OS2X6nebNfaFC4FzkdhytlZ+SVsjK+V0rTX+p1hVVSXBphlfrnH1apMXtgCyVQaHFw8Lau0KJmcLe/fwCMZlRWGtz1h2V8omQ1gzS8Pmbi8Pojsyc4BugKNBvZ9Ss0GNcUE0K4Uc7Kr0aSr6ysQrUvPVtGR/9i9qVJvuLiV/VgCKxZg3PkTCXNgBsloJZRiZZmvXXLuFNA7NoWlupOFsyV6MZ3LRYXH/HUwJa5EhLP8anBkNVqW8d8L0GfHNAMeII+9ggsyiZZiPpqhWbAEcJNNA9LfW2sz23q6g7InmmpxPDchtoeoFiWN2xE+Rc4UZvU7VjAVAAAAABJRU5ErkJggg==" alt="GapTuber" style="width:22px;height:22px;object-fit:contain;flex-shrink:0"/>
+    <div>
+      <div class="brand-name">GapTuber</div>
+      <span class="brand-sub">Intelligence Suite</span>
+    </div>
+  </div>
+  <div class="header-right">
+    <a class="dash-btn" id="dashboardLink" href="#" target="_blank" title="Open Dashboard">
+      &#8599; Dashboard
+    </a>
+    <div class="auth-dot" id="authDot" title="Sign-in status"></div>
+  </div>
+</div>
+
+<!-- Tab Navigation -->
+<nav class="tab-nav">
+  <button class="tab-btn active" data-tab="channel">
+    <span class="tab-icon">📊</span>Channel
+  </button>
+  <button class="tab-btn" data-tab="gap">
+    <span class="tab-icon">🔍</span>Gap Scan
+  </button>
+  <button class="tab-btn" data-tab="seo">
+    <span class="tab-icon">🎯</span>SEO
+  </button>
+  <button class="tab-btn" data-tab="tags">
+    <span class="tab-icon">🏷️</span>Tags
+  </button>
+  <button class="tab-btn" data-tab="history">
+    <span class="tab-icon">🕐</span>History
+  </button>
+</nav>
+
+<!-- Scrollable content wrapper (offset below fixed header + tab nav) -->
+<div class="main-scroll">
+
+<!-- Channel Analysis Tab -->
+<div class="tab-content active" id="tab-channel">
+  <div class="field-group">
+    <div class="field-label">📍 Channel Analysis</div>
+    <div style="font-size:10px;color:#71717a;margin-bottom:8px">Navigate to a YouTube channel page to analyze its content.</div>
+  </div>
+  <button class="btn-primary" id="analyzeChannelBtn">
+    <span>📊</span> Analyze Current Channel <span style="display:flex;align-items:center;gap:3px;background:rgba(0,0,0,0.2);padding:2px 5px;border-radius:4px;font-size:10px;font-family:monospace;margin-left:6px;color:#fef08a;line-height:1">⚡ -1</span>
+  </button>
+  <div id="channelResult"></div>
+</div>
+
+<!-- Gap Scanner Tab -->
+<div class="tab-content" id="tab-gap">
+  <div class="field-group">
+    <div class="field-label">🔑 Target Keyword <span style="font-size:9px;color:#3f3f46;font-weight:400;font-family:monospace">(comma-separate for multi-keyword cluster)</span></div>
+    <input type="text" id="keyword" placeholder="e.g. AI coding, vibe coding, web dev 2026"/>
+    <div id="keywordChips"></div>
+  </div>
+  <div class="field-group">
+    <div class="field-label" style="color:#3f3f46">Competitor Channels (optional — or open a YouTube video)</div>
+    <input type="url" id="gapChannel1" placeholder="https://www.youtube.com/@channel1" style="margin-bottom:4px"/>
+    <input type="url" id="gapChannel2" placeholder="https://www.youtube.com/@channel2" style="margin-bottom:4px"/>
+    <input type="url" id="gapChannel3" placeholder="https://www.youtube.com/@channel3"/>
+  </div>
+  <button class="btn-primary" id="runGapScanBtn">
+    <span>🔍</span> Run Gap Scan <span style="display:flex;align-items:center;gap:3px;background:rgba(0,0,0,0.2);padding:2px 5px;border-radius:4px;font-size:10px;font-family:monospace;margin-left:6px;color:#fef08a;line-height:1">⚡ -1</span>
+  </button>
+  <div id="gapResult"></div>
+</div>
+
+<!-- SEO Auditor Tab -->
+<div class="tab-content" id="tab-seo">
+  <div class="field-group">
+    <div class="field-label">🎬 Video Title</div>
+    <input type="text" id="seoTitle" placeholder="e.g. How to Learn Python in 30 Days"/>
+  </div>
+  <div class="field-group">
+    <div class="field-label">🔑 Primary Keyword</div>
+    <input type="text" id="seoKeyword" placeholder="e.g. python tutorial for beginners"/>
+  </div>
+  <div class="field-group">
+    <div class="field-label">📝 Description (optional)</div>
+    <textarea id="seoDescription" placeholder="Paste your video description here..."></textarea>
+  </div>
+  <div class="field-group">
+    <div class="field-label">🏷️ Tags (optional, comma-separated)</div>
+    <input type="text" id="seoTags" placeholder="python, coding, tutorial"/>
+  </div>
+  <button class="btn-primary" id="runSeoBtn">
+    <span>🎯</span> Run SEO Audit
+  </button>
+  <div id="seoResult"></div>
+</div>
+
+<!-- Tag Generator Tab -->
+<div class="tab-content" id="tab-tags">
+  <div class="field-group">
+    <div class="field-label">🔑 Topic / Keyword</div>
+    <input type="text" id="tagKeyword" placeholder="e.g. Python tutorial, AI tools"/>
+  </div>
+  <div class="field-group">
+    <div class="field-label">📂 Niche (optional)</div>
+    <input type="text" id="tagNiche" placeholder="e.g. Coding, Finance, Gaming"/>
+  </div>
+  <button class="btn-primary" id="runTagBtn">
+    <span>🏷️</span> Generate Tags
+  </button>
+  <div id="tagResult"></div>
+</div>
+
+<!-- History Tab -->
+<div class="tab-content" id="tab-history">
+  <div class="field-group">
+    <div class="field-label">🕐 Recent Analyses</div>
+    <div style="font-size:10px;color:#52525b;margin-bottom:8px">Your last 5 channel analyses. Click any to reload it.</div>
+  </div>
+  <div id="historyList"><div class="history-empty">No analyses yet.<br/>Run a Channel Analysis to see history here.</div></div>
+  <div style="margin-top:10px">
+    <div class="field-label" style="margin-bottom:6px">📡 Tracked Keywords</div>
+    <div style="font-size:10px;color:#52525b;margin-bottom:8px">Keywords you're monitoring for trend changes.</div>
+    <div id="trackedKeywordsList"><div class="history-empty">No tracked keywords.<br/>Click " Track" in Gap Scanner results.</div></div>
+  </div>
+</div>
+
+</div><!-- /.main-scroll -->
+
+</body>
+</html>

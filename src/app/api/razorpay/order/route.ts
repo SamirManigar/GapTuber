@@ -4,8 +4,8 @@ import Razorpay from "razorpay";
 import { withPaymentRateLimit, getCachedOrder, cacheOrder } from "@/lib/security";
 
 const razorpay = new Razorpay({
-    key_id: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || "",
-    key_secret: process.env.RAZORPAY_KEY_SECRET || "",
+    key_id: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || "dummy",
+    key_secret: process.env.RAZORPAY_KEY_SECRET || "dummy",
 });
 
 const PLAN_PRICES: Record<string, number> = {
