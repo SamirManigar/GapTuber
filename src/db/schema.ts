@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, timestamp, jsonb, index, integer, real, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, uuid, text, timestamp, jsonb, index, integer, real, uniqueIndex, unique, bigint, varchar } from "drizzle-orm/pg-core";
 
 export const users = pgTable("users", {
     id: uuid("id").defaultRandom().primaryKey(),
@@ -64,6 +64,56 @@ export const scans = pgTable("scans", {
     index("scan_user_idx").on(table.userId)
 ]);
 
+export const outlierDetections = pgTable("outlier_detections", {
+    id: uuid("id").primaryKey().defaultRandom(),
+    searchRunId: uuid("search_run_id").references(() => scans.id),
+    videoId: varchar("video_id", { length: 255 }).notNull(),
+    keyword: varchar("keyword", { length: 255 }).notNull(),
+    detectedAt: timestamp("detected_at", { withTimezone: true }).defaultNow().notNull(),
+    relevanceScore: real("relevance_score").notNull(),
+    pacePercentile: real("pace_percentile").notNull(),
+    channelLift: real("channel_lift").notNull(),
+    classification: varchar("classification", { length: 50 }).notNull(),
+    engineVersion: varchar("engine_version", { length: 50 }).notNull(),
+}, (table) => [
+    index("detection_video_idx").on(table.videoId),
+    index("detection_search_idx").on(table.searchRunId)
+]);
+
+export const trackedVideos = pgTable("tracked_videos", {
+    id: uuid("id").primaryKey().defaultRandom(),
+    videoId: varchar("video_id", { length: 255 }).notNull().unique(),
+    firstDetectedAt: timestamp("first_detected_at", { withTimezone: true }).notNull(),
+    trackingStartedAt: timestamp("tracking_started_at", { withTimezone: true }).notNull(),
+    trackingExpiresAt: timestamp("tracking_expires_at", { withTimezone: true }).notNull(),
+    status: varchar("status", { length: 50 }).notNull(),
+    priority: varchar("priority", { length: 50 }).notNull(),
+    lastSnapshotAt: timestamp("last_snapshot_at", { withTimezone: true }),
+    nextSnapshotAt: timestamp("next_snapshot_at", { withTimezone: true }),
+    detectionReason: varchar("detection_reason", { length: 255 }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const videoMetricSnapshots = pgTable("video_metric_snapshots", {
+    id: uuid("id").primaryKey().defaultRandom(),
+    trackingId: uuid("tracking_id").notNull().references(() => trackedVideos.id),
+    videoId: varchar("video_id", { length: 255 }).notNull(),
+    targetOffsetHours: real("target_offset_hours").notNull(),
+    scheduledFor: timestamp("scheduled_for", { withTimezone: true }).notNull(),
+    capturedAt: timestamp("captured_at", { withTimezone: true }).defaultNow().notNull(),
+    views: bigint("views", { mode: "number" }).notNull(),
+    likes: bigint("likes", { mode: "number" }),
+    comments: bigint("comments", { mode: "number" }),
+    captureTrigger: varchar("capture_trigger", { length: 50 }),
+    collectorVersion: varchar("collector_version", { length: 50 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+    unique("snapshot_tracking_offset_idx").on(table.trackingId, table.targetOffsetHours),
+    index("snapshot_video_idx").on(table.videoId),
+    index("snapshot_time_idx").on(table.capturedAt)
+]);
+
 export interface VideoIdeaDB {
     id?: string;
     title: string;
@@ -95,6 +145,12 @@ export type Channel = typeof channels.$inferSelect;
 export type NewChannel = typeof channels.$inferInsert;
 export type Scan = typeof scans.$inferSelect;
 export type NewScan = typeof scans.$inferInsert;
+export type TrackedVideo = typeof trackedVideos.$inferSelect;
+export type NewTrackedVideo = typeof trackedVideos.$inferInsert;
+export type VideoMetricSnapshot = typeof videoMetricSnapshots.$inferSelect;
+export type NewVideoMetricSnapshot = typeof videoMetricSnapshots.$inferInsert;
+export type OutlierDetection = typeof outlierDetections.$inferSelect;
+export type NewOutlierDetection = typeof outlierDetections.$inferInsert;
 
 export interface ScanResult {
     gaps: GapItem[];
@@ -109,6 +165,10 @@ export interface GapItem {
     gapScore: number;
     confidence?: number;
     reasoning: string;
+    classification?: "BREAKOUT" | "EMERGING" | "EVERGREEN" | "WATCH";
+    scoringVersion?: string;
+    scoreReasons?: string[];
+    evidenceOutliers?: { channelName: string; normalMedian: number; candidateViews: number; lift: number; ageHours: number; }[];
     whyNow?: string;
     quantitativeReasons?: { type: string; label: string; value: string; source?: string }[];
     evidenceComments?: { commentId: string; text?: string; likes?: number }[];
@@ -153,6 +213,16 @@ export interface ScanAnalytics {
 }
 
 // ─── AuraBot Schema ──────────────────────────────────────────────────────────
+
+// Foundation for true velocity acceleration tracking (v2.1)
+export const metricSnapshots = pgTable("metric_snapshots", {
+    id: text("id").primaryKey(),
+    videoId: text("video_id").notNull(),
+    views: integer("views").notNull(),
+    likes: integer("likes").notNull(),
+    comments: integer("comments").notNull(),
+    capturedAt: timestamp("captured_at").defaultNow().notNull(),
+});
 
 export const botChats = pgTable("bot_chats", {
     id: uuid("id").defaultRandom().primaryKey(),

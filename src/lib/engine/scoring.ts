@@ -6,6 +6,7 @@ export interface VideoData {
     views: number;
     likes: number;
     comments: number;
+    dislikes?: number;
     uploadDate: string;
     url: string;
     channel: string;
@@ -26,10 +27,15 @@ export interface CommentData {
 export interface SearchResult {
     title: string;
     channel: string;
+    channelId?: string;
+    videoId?: string;
     views: number;
     likes: number;
     uploadDate: string;
     subscriberCount?: number;
+    hiddenSubscriberCount?: boolean;
+    duration?: string;
+    description?: string;
 }
 
 export interface ScoringInput {
@@ -37,13 +43,14 @@ export interface ScoringInput {
     videos: VideoData[];
     comments: CommentData[];
     searchResults: SearchResult[];
+    channelLiftData?: Record<string, { lift: number; confidence: string; candidateViews: number; ageHours: number }>;
 }
 
 export interface ScoreBreakdown {
     velocityScore: number;
     saturationScore: number;
     frustrationScore: number;
-    abandonmentScore: number;
+    freshnessGapScore: number;
     engagementScore: number;
     trendMomentum: number;
     competitionScore: number;
@@ -55,6 +62,9 @@ export interface GapCandidate {
     title: string;
     angle: string;
     scores: ScoreBreakdown;
+    classification: "BREAKOUT" | "EMERGING" | "EVERGREEN" | "WATCH";
+    scoreReasons: string[];
+    evidenceOutliers?: { channelName: string; normalMedian: number; candidateViews: number; lift: number; ageHours: number; }[];
     topFrustrationKeywords: string[];
     velocityInsight: string;
     saturationInsight: string;
@@ -415,7 +425,7 @@ export function computeFrustrationScore(comments: CommentData[]): {
  * Abandonment Score: detects topics with high demand but no recent supply
  * Uses: view-to-recency ratio, upload gap analysis
  */
-export function computeAbandonmentScore(videos: VideoData[]): {
+export function computeFreshnessGapScore(videos: VideoData[]): {
     score: number;
     insight: string;
 } {
@@ -449,10 +459,10 @@ export function computeAbandonmentScore(videos: VideoData[]): {
 
     if (highPerformingVideos.length >= 3 && recentVideos.length === 0) {
         score = 10;
-        insight = `${highPerformingVideos.length} high-performing videos (50K+ views) with NO recent uploads — prime abandoned niche`;
+        insight = `${highPerformingVideos.length} high-performing videos (50K+ views) with NO recent uploads — prime coverage freshness gap (Demand Source: YouTube API Search Density)`;
     } else if (highPerformingVideos.length >= 2 && recentVideos.length === 0) {
         score = 8.5;
-        insight = `${highPerformingVideos.length} viral videos but no uploads in 30 days — strong abandonment signal`;
+        insight = `${highPerformingVideos.length} viral videos but no uploads in 30 days — strong coverage freshness gap`;
     } else if (highPerformingVideos.length >= 2 && last90Videos.length <= 1) {
         score = 7;
         insight = `High-performing content exists but upload frequency dropped significantly`;
@@ -777,7 +787,7 @@ export function buildGapCandidates(input: ScoringInput): GapCandidate[] {
     const velocity = computeVelocityScore(input.videos);
     const saturation = computeSaturationScore(input.searchResults);
     const frustration = computeFrustrationScore(input.comments);
-    const abandonment = computeAbandonmentScore(input.videos);
+    const freshnessGap = computeFreshnessGapScore(input.videos);
     const engagement = computeEngagementScore(input.videos);
     const trendMomentum = computeTrendMomentum(input.videos);
     const competition = computeCompetitionScore(input.searchResults);
@@ -793,21 +803,130 @@ export function buildGapCandidates(input: ScoringInput): GapCandidate[] {
     const searchConf = Math.min(input.searchResults.length / 15, 1) * 0.3;
     const confidence = Math.min(1, videoConf + commentConf + searchConf);
 
-    // Dynamically boost abandonment when it fires strongly
-    const isStrongAbandonment = abandonment.score >= 7;
-    const compositeScore = isStrongAbandonment
-        ? velocity.score * 0.20 +
-          frustration.score * 0.20 +
-          saturation.score * 0.18 +
-          trendMomentum.score * 0.12 +
-          competition.score * 0.10 +
-          abandonment.score * 0.20
-        : velocity.score * 0.25 +
-          frustration.score * 0.20 +
-          saturation.score * 0.20 +
-          trendMomentum.score * 0.15 +
-          competition.score * 0.10 +
-          abandonment.score * 0.10;
+    // ─── Outlier Engine 2.1 (Channel Lift & Confirmations) ───
+    let classification: "BREAKOUT" | "EMERGING" | "EVERGREEN" | "WATCH" = "WATCH";
+    let scoreReasons: string[] = [];
+    
+    let maxChannelLift = 0;
+    let outlierCount = 0;
+    let averageChannelLift = 0;
+    let liftSum = 0;
+    const uniqueChannels = new Set<string>();
+    let hasHighConfidenceBaseline = false;
+    const evidenceOutliers: { channelName: string; normalMedian: number; candidateViews: number; lift: number; ageHours: number; }[] = [];
+
+    if (input.channelLiftData) {
+        for (const [channelId, data] of Object.entries(input.channelLiftData)) {
+            if (data.lift > 1.5) { // If it's performing 1.5x better than baseline
+                outlierCount++;
+                liftSum += data.lift;
+                maxChannelLift = Math.max(maxChannelLift, data.lift);
+                uniqueChannels.add(channelId);
+                if (data.confidence === "High") hasHighConfidenceBaseline = true;
+                
+                // Find channel name for evidence
+                const channelName = input.searchResults.find(r => r.channelId === channelId)?.channel || "Unknown Channel";
+                evidenceOutliers.push({
+                    channelName,
+                    normalMedian: Math.round(data.candidateViews / data.lift),
+                    candidateViews: data.candidateViews,
+                    lift: data.lift,
+                    ageHours: data.ageHours
+                });
+            }
+        }
+    }
+
+    const uniqueChannelCount = uniqueChannels.size;
+
+    if (outlierCount > 0) {
+        averageChannelLift = liftSum / outlierCount;
+        scoreReasons.push(`+ ${uniqueChannelCount} independent channel outlier(s) detected`);
+        scoreReasons.push(`+ ${averageChannelLift.toFixed(1)}x average channel lift`);
+        
+        // SINGLE-VIDEO BREAKOUT or CROSS-CHANNEL CLUSTERING
+        const highPace = velocity.score >= 8;
+        if (uniqueChannelCount >= 3 || (maxChannelLift >= 5 && highPace && hasHighConfidenceBaseline)) {
+            classification = "BREAKOUT";
+        } else {
+            classification = "EMERGING";
+        }
+    } else {
+        // Look for basic velocity outliers if no channel lift data is available
+        let basicOutlier = false;
+        for (const res of input.searchResults) {
+            const subs = res.subscriberCount ?? 100000;
+            const days = Math.max(1, daysSince(res.uploadDate));
+            const viewsPerDay = res.views / days;
+            if ((subs < 50000 && viewsPerDay > 1000) || (subs < 10000 && viewsPerDay > 500)) {
+                basicOutlier = true;
+                break;
+            }
+        }
+        if (basicOutlier) {
+            classification = "EMERGING";
+            scoreReasons.push("+ Smaller channels are currently outperforming their normal reach on this topic");
+            outlierCount = 1;
+        } else {
+            // Check for EVERGREEN evidence
+            if (freshnessGap.score >= 6 && competition.score >= 6 && engagement.score >= 5) {
+                classification = "EVERGREEN";
+            } else {
+                classification = "WATCH";
+                scoreReasons.push("◉ NO CLEAR OPPORTUNITY");
+                scoreReasons.push("- Insufficient evidence to classify this topic as Breakout, Emerging, or Evergreen.");
+            }
+        }
+    }
+
+    // Opportunity Score Weights 2.1
+    let liftWeight = 0.30;
+    let paceWeight = 0.25;
+    let crossChannelWeight = 0.20;
+    let competitionWeight = 0.10;
+    let unmetDemandWeight = 0.10;
+    let engagementWeight = 0.05;
+
+    let outlierStrengthScore = 0;
+    if (input.channelLiftData && Object.keys(input.channelLiftData).length > 0) {
+        outlierStrengthScore = Math.min(10, averageChannelLift * 1.5);
+    } else {
+        // Redistribute the lift & cross channel weights if data is unavailable
+        const redistribute = liftWeight + crossChannelWeight;
+        liftWeight = 0;
+        crossChannelWeight = 0;
+        // Redistribute 50% proportionally among remainder (25:10:10:5)
+        const totalRemaining = paceWeight + competitionWeight + unmetDemandWeight + engagementWeight;
+        paceWeight += redistribute * (paceWeight / totalRemaining);
+        competitionWeight += redistribute * (competitionWeight / totalRemaining);
+        unmetDemandWeight += redistribute * (unmetDemandWeight / totalRemaining);
+        engagementWeight += redistribute * (engagementWeight / totalRemaining);
+    }
+
+    let crossChannelSignalScore = Math.min(10, uniqueChannelCount * 3.3);
+    
+    let compositeScore = 
+        (outlierStrengthScore * liftWeight) +
+        (velocity.score * paceWeight) + 
+        (crossChannelSignalScore * crossChannelWeight) +
+        (competition.score * competitionWeight) +
+        (frustration.score * unmetDemandWeight) +
+        (engagement.score * engagementWeight);
+        
+    compositeScore = Math.min(10, compositeScore);
+
+    // Give some more explainability
+    if (velocity.score > 7) scoreReasons.push("+ High current view velocity");
+    if (competition.score >= 7) scoreReasons.push("+ Competition is low");
+    if (engagement.score > 7) scoreReasons.push("+ High audience engagement");
+    if (outlierCount === 0) {
+        scoreReasons.push("- No massive channel breakouts detected recently");
+        // Boost score slightly if abandonment is very high (Evergreen Gap)
+        if (freshnessGap.score >= 7) {
+            compositeScore = Math.max(compositeScore, 7);
+            scoreReasons.push("+ Strong persistent evergreen demand with weak competition");
+        }
+    }
 
     const roundedComposite = Math.round(compositeScore * 10) / 10;
     const keyword = input.keyword;
@@ -823,7 +942,7 @@ export function buildGapCandidates(input: ScoringInput): GapCandidate[] {
         velocityScore: velocity.score,
         saturationScore: saturation.score,
         frustrationScore: frustration.score,
-        abandonmentScore: abandonment.score,
+        freshnessGapScore: freshnessGap.score,
         engagementScore: engagement.score,
         trendMomentum: trendMomentum.score,
         competitionScore: competition.score,
@@ -840,18 +959,18 @@ export function buildGapCandidates(input: ScoringInput): GapCandidate[] {
         // Angles that match the dominant signal get a higher composite
         signalWeights: {
             velocity: number; frustration: number; saturation: number;
-            trend: number; competition: number; abandonment: number;
+            trend: number; competition: number; freshnessGap: number;
         };
     };
 
     const ALL_ANGLES: AngleConfig[] = [];
 
     // Abandoned niche revival — best when supply gap is the key signal
-    if (baseScores.abandonmentScore >= 6) {
+    if (baseScores.freshnessGapScore >= 6) {
         ALL_ANGLES.push({
             title: `The ${keyword} Guide Nobody Is Making in ${currentYear} (Finally Updated)`,
             angle: "abandoned_niche_revival",
-            signalWeights: { velocity: 0.15, frustration: 0.15, saturation: 0.15, trend: 0.15, competition: 0.10, abandonment: 0.30 },
+            signalWeights: { velocity: 0.15, frustration: 0.15, saturation: 0.15, trend: 0.15, competition: 0.10, freshnessGap: 0.30 },
         });
     }
 
@@ -860,12 +979,12 @@ export function buildGapCandidates(input: ScoringInput): GapCandidate[] {
         ALL_ANGLES.push({
             title: `Stop Struggling With ${keyword}: The Fix That Actually Works`,
             angle: "problem_solution",
-            signalWeights: { velocity: 0.15, frustration: 0.35, saturation: 0.15, trend: 0.10, competition: 0.10, abandonment: 0.15 },
+            signalWeights: { velocity: 0.15, frustration: 0.35, saturation: 0.15, trend: 0.10, competition: 0.10, freshnessGap: 0.15 },
         });
         ALL_ANGLES.push({
             title: `Everyone Gets ${keyword} Wrong — Here's What They Miss`,
             angle: "contrarian_correction",
-            signalWeights: { velocity: 0.20, frustration: 0.25, saturation: 0.20, trend: 0.10, competition: 0.15, abandonment: 0.10 },
+            signalWeights: { velocity: 0.20, frustration: 0.25, saturation: 0.20, trend: 0.10, competition: 0.15, freshnessGap: 0.10 },
         });
     }
 
@@ -874,7 +993,7 @@ export function buildGapCandidates(input: ScoringInput): GapCandidate[] {
         ALL_ANGLES.push({
             title: `Why Everyone Is Suddenly Talking About ${keyword} (Full Breakdown)`,
             angle: "trend_capitalizer",
-            signalWeights: { velocity: 0.35, frustration: 0.10, saturation: 0.10, trend: 0.30, competition: 0.10, abandonment: 0.05 },
+            signalWeights: { velocity: 0.35, frustration: 0.10, saturation: 0.10, trend: 0.30, competition: 0.10, freshnessGap: 0.05 },
         });
     }
 
@@ -883,7 +1002,7 @@ export function buildGapCandidates(input: ScoringInput): GapCandidate[] {
         ALL_ANGLES.push({
             title: `The Real Reason ${keyword} Is Exploding Right Now`,
             angle: "trend_explainer",
-            signalWeights: { velocity: 0.25, frustration: 0.10, saturation: 0.15, trend: 0.35, competition: 0.10, abandonment: 0.05 },
+            signalWeights: { velocity: 0.25, frustration: 0.10, saturation: 0.15, trend: 0.35, competition: 0.10, freshnessGap: 0.05 },
         });
     }
 
@@ -892,7 +1011,7 @@ export function buildGapCandidates(input: ScoringInput): GapCandidate[] {
         ALL_ANGLES.push({
             title: `${keyword} for Complete Beginners: Zero to Confident in One Video`,
             angle: "underserved_beginner",
-            signalWeights: { velocity: 0.20, frustration: 0.10, saturation: 0.10, trend: 0.10, competition: 0.40, abandonment: 0.10 },
+            signalWeights: { velocity: 0.20, frustration: 0.10, saturation: 0.10, trend: 0.10, competition: 0.40, freshnessGap: 0.10 },
         });
     }
 
@@ -901,7 +1020,7 @@ export function buildGapCandidates(input: ScoringInput): GapCandidate[] {
         ALL_ANGLES.push({
             title: `I Tested Every ${keyword} Method So You Don't Have To`,
             angle: "exhaustive_test",
-            signalWeights: { velocity: 0.20, frustration: 0.20, saturation: 0.35, trend: 0.10, competition: 0.10, abandonment: 0.05 },
+            signalWeights: { velocity: 0.20, frustration: 0.20, saturation: 0.35, trend: 0.10, competition: 0.10, freshnessGap: 0.05 },
         });
     }
 
@@ -909,17 +1028,17 @@ export function buildGapCandidates(input: ScoringInput): GapCandidate[] {
     ALL_ANGLES.push({
         title: `${keyword} vs The Alternatives: Honest ${currentYear} Comparison`,
         angle: "comparison",
-        signalWeights: { velocity: 0.20, frustration: 0.15, saturation: 0.25, trend: 0.15, competition: 0.15, abandonment: 0.10 },
+        signalWeights: { velocity: 0.20, frustration: 0.15, saturation: 0.25, trend: 0.15, competition: 0.15, freshnessGap: 0.10 },
     });
     ALL_ANGLES.push({
         title: `The ${keyword} Mistakes Nobody Warns You About (With Real Data)`,
         angle: "mistakes_avoidance",
-        signalWeights: { velocity: 0.20, frustration: 0.30, saturation: 0.15, trend: 0.10, competition: 0.15, abandonment: 0.10 },
+        signalWeights: { velocity: 0.20, frustration: 0.30, saturation: 0.15, trend: 0.10, competition: 0.15, freshnessGap: 0.10 },
     });
     ALL_ANGLES.push({
         title: `Complete ${keyword} Roadmap for Beginners (Step by Step, ${currentYear})`,
         angle: "beginner_explainer",
-        signalWeights: { velocity: 0.25, frustration: 0.15, saturation: 0.20, trend: 0.15, competition: 0.15, abandonment: 0.10 },
+        signalWeights: { velocity: 0.25, frustration: 0.15, saturation: 0.20, trend: 0.15, competition: 0.15, freshnessGap: 0.10 },
     });
 
     // Compute per-candidate composite scores using their signal weights
@@ -932,7 +1051,7 @@ export function buildGapCandidates(input: ScoringInput): GapCandidate[] {
             saturation.score     * w.saturation +
             trendMomentum.score  * w.trend +
             competition.score    * w.competition +
-            abandonment.score    * w.abandonment;
+            freshnessGap.score   * w.freshnessGap;
         return { ...a, perAngleComposite: Math.round(perAngleComposite * 10) / 10 };
     });
 
@@ -946,6 +1065,9 @@ export function buildGapCandidates(input: ScoringInput): GapCandidate[] {
             ...baseScores,
             compositeScore: Math.min(10, Math.max(0, a.perAngleComposite)),
         },
+        classification,
+        scoreReasons,
+        evidenceOutliers,
         topFrustrationKeywords: topFrustrations,
         velocityInsight: velocity.insight,
         saturationInsight: saturation.insight,

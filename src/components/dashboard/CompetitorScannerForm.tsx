@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Loader2, Plus, Target, Trash2, Zap } from "lucide-react";
 import { GapCard, AnalyticsPanel } from "./ScanComponents";
-import { useRouter } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import type { GapItem, ScanAnalytics } from "@/db/schema";
 import Image from "next/image";
 
@@ -28,16 +28,24 @@ interface AnalysisResult {
 }
 
 export function CompetitorScannerForm({ channelId, topic }: { channelId: string; topic: string }) {
-    const [keyword, setKeyword] = useState("");
-    const [competitors, setCompetitors] = useState<string[]>([""]);
+    const searchParams = useSearchParams();
+    const router = useRouter();
+
+    // Initialize state from URL params if present (from Extension)
+    const initialKeyword = searchParams.get("keyword") || "";
+    const initialCompetitorsStr = searchParams.get("competitors");
+    const initialCompetitors = initialCompetitorsStr 
+        ? initialCompetitorsStr.split(",").map(c => c.trim()).slice(0, 3) 
+        : [""];
+
+    const [keyword, setKeyword] = useState(initialKeyword);
+    const [competitors, setCompetitors] = useState<string[]>(initialCompetitors.length > 0 ? initialCompetitors : [""]);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [result, setResult] = useState<AnalysisResult | null>(null);
     
     const [recommendedCompetitors, setRecommendedCompetitors] = useState<RecommendedCompetitor[]>([]);
     const [isFetchingRecommendations, setIsFetchingRecommendations] = useState(false);
-    
-    const router = useRouter();
 
     const addCompetitor = () => {
         if (competitors.length < 3) {

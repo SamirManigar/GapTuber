@@ -21,6 +21,8 @@ export const env = createEnv({
     RAZORPAY_KEY_SECRET: z.string().min(1).optional(),
     RAZORPAY_WEBHOOK_SECRET: z.string().optional(),
     CRON_SECRET: z.string().min(32).optional(),
+    FILMOT_API_KEY: z.string().optional(),
+    EXA_API_KEY: z.string().optional(),
   },
   client: {
     NEXT_PUBLIC_APP_URL: z.string().url(),
@@ -47,6 +49,8 @@ export const env = createEnv({
     RAZORPAY_KEY_SECRET: process.env.RAZORPAY_KEY_SECRET,
     RAZORPAY_WEBHOOK_SECRET: process.env.RAZORPAY_WEBHOOK_SECRET,
     CRON_SECRET: process.env.CRON_SECRET,
+    FILMOT_API_KEY: process.env.FILMOT_API_KEY,
+    EXA_API_KEY: process.env.EXA_API_KEY,
     NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
     NEXT_PUBLIC_SENTRY_DSN: process.env.NEXT_PUBLIC_SENTRY_DSN,
     NEXT_PUBLIC_RAZORPAY_KEY_ID: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,

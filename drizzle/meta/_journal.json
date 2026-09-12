@@ -15,6 +15,13 @@
       "when": 1788854992114,
       "tag": "0001_outcome_learning",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1789215241119,
+      "tag": "0002_demonic_wolfsbane",
+      "breakpoints": true
     }
   ]
 }

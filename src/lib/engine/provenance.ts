@@ -1,6 +1,6 @@
 import type { ScanAnalytics } from "@/db/schema";
 
-export const SCORING_VERSION = "3.0.0";
+export const SCORING_VERSION = "2.1.0";
 
 type ProvenanceInput = {
     source?: NonNullable<ScanAnalytics["provenance"]>["source"];

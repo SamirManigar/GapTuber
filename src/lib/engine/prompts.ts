@@ -69,7 +69,7 @@ export function buildAnalysisPrompt(
    Velocity: ${c.scores.velocityScore.toFixed(1)}/10 \u2014 ${c.velocityInsight}
    Saturation: ${c.scores.saturationScore.toFixed(1)}/10 \u2014 ${c.saturationInsight}
    Frustration Signals: ${c.scores.frustrationScore.toFixed(1)}/10
-   Abandonment: ${c.scores.abandonmentScore.toFixed(1)}/10
+   Coverage Freshness: ${c.scores.freshnessGapScore.toFixed(1)}/10
    Trend Momentum: ${c.scores.trendMomentum.toFixed(1)}/10 \u2014 ${c.trendInsight}
    Competition Difficulty: ${c.scores.competitionScore.toFixed(1)}/10 \u2014 ${c.competitionInsight}
    Top Audience Pain Keywords: ${c.topFrustrationKeywords.slice(0, 6).join(", ")}

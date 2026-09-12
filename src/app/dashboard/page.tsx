@@ -166,9 +166,10 @@ async function ScanHistorySection({ channelId, limit, savedIdeas = [] }: { chann
                                     {result.gaps.map((gap, i) => (
                                         <GapCard
                                             key={i}
-                                            gap={{...gap, scanId: scan.id}}
+                                            gap={gap}
                                             rank={i + 1}
                                             channelId={channelId}
+                                            scanId={scan.id}
                                             isAlreadySaved={savedIdeas.some(s => s.title === gap.title)}
                                             analytics={analytics}
                                         />

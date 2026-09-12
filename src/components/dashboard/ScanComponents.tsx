@@ -8,7 +8,7 @@ import {
     ChevronDown, Loader2, BookmarkCheck, Bookmark,
     TrendingUp, Clock, BarChart2, Crosshair,
     Target, FileText, AlertCircle, CheckCircle2,
-    MessageSquare, Lightbulb, ArrowRight,
+    MessageSquare, Lightbulb, ArrowRight, Share2, Image, X, LineChart,
 } from "lucide-react";
 
 // Lazy-load the heavy ScriptModal so it's not in the initial bundle
@@ -135,14 +135,14 @@ export function AnalyticsPanel({ analytics }: { analytics: ScanAnalytics }) {
     const r = (v: number | null | undefined) => Math.round((v ?? 0) * 10);
 
     const rings = [
-        { score: s(analytics.velocity?.score),    label: "View Velocity",  color: "#34d399" },
+        { score: s(analytics.velocity?.score),    label: "Average Pace",  color: "#34d399" },
         { score: s(analytics.saturation?.score),  label: "Opportunity",    color: "#60a5fa" },
         { score: s(analytics.frustration?.score), label: "Comment Need",   color: "#f87171" },
         { score: s(analytics.trend?.score),       label: "Recent Direction", color: "#a78bfa" },
     ];
 
     const bars = [
-        { label: "View Velocity",   score: r(analytics.velocity?.score) },
+        { label: "Average Pace",    score: r(analytics.velocity?.score) },
         { label: "Opportunity",     score: r(analytics.saturation?.score) },
         { label: "Comment Need",    score: r(analytics.frustration?.score) },
         { label: "Recent Direction", score: r(analytics.trend?.score) },
@@ -332,17 +332,23 @@ export function AnalyticsPanel({ analytics }: { analytics: ScanAnalytics }) {
 
 // ─── Gap Card ─────────────────────────────────────────────────────────────────
 
-export function GapCard({ gap, rank, channelId, isAlreadySaved, analytics }: {
+export function GapCard({ gap, rank, channelId, scanId, isAlreadySaved, analytics }: {
     gap: GapItem;
     rank: number;
     channelId?: string;
+    scanId?: string;
     isAlreadySaved?: boolean;
     analytics?: ScanAnalytics | null;
 }) {
     const [scriptOpen, setScriptOpen] = React.useState(false);
+    const [thumbOpen, setThumbOpen] = React.useState(false);
+    const [evidenceOpen, setEvidenceOpen] = React.useState(false);
 
     const score100 = toDisplayScore(gap.gapScore);
-    const { label: scoreLabel, tier } = getScoreLabel(score100);
+    const classification = gap.classification || "EVERGREEN";
+    const classificationEmoji = classification === "BREAKOUT" ? "🔥" : classification === "EMERGING" ? "📈" : classification === "WATCH" ? "👀" : "🌲";
+    const scoreLabel = `${classificationEmoji} ${classification} OPPORTUNITY`;
+    const tier = classification === "BREAKOUT" ? "strong" : classification === "EMERGING" ? "good" : classification === "WATCH" ? "experimental" : "good";
     const tierColors = getTierColors(tier);
 
     const accentBorder =
@@ -373,7 +379,7 @@ export function GapCard({ gap, rank, channelId, isAlreadySaved, analytics }: {
     const bars = [
         { label: "Comment Need",    score: typeof analytics?.frustration?.score === "number" ? analytics.frustration.score * 10 : null },
         { label: "Competition Gap", score: typeof analytics?.competition?.score === "number" ? analytics.competition.score * 10 : null },
-        { label: "View Velocity",   score: typeof analytics?.velocity?.score === "number" ? analytics.velocity.score * 10 : null },
+        { label: "Average Pace",    score: typeof analytics?.velocity?.score === "number" ? analytics.velocity.score * 10 : null },
         { label: "Recent Direction", score: typeof analytics?.trend?.score === "number" ? analytics.trend.score * 10 : null },
     ].filter(b => b.score !== null) as { label: string; score: number; }[];
 
@@ -411,17 +417,17 @@ export function GapCard({ gap, rank, channelId, isAlreadySaved, analytics }: {
                         {/* Score label & Confidence */}
                         <div className="flex items-center gap-3 mb-2 flex-wrap">
                             <p className={`text-[10px] font-mono font-bold uppercase tracking-widest ${tierColors.text}`}>
-                                {tier === "strong" ? "🔥" : tier === "good" ? "🟡" : "⚪"} {scoreLabel}
+                                OPPORTUNITY {score100}/100
                             </p>
                             {confLabel && (
                                 <p className={`text-[10px] font-mono font-bold uppercase tracking-widest ${confColor}`}>
-                                    · DATA COVERAGE: {confLabel} {Math.round(confValue!)}%
+                                    · EVIDENCE CONFIDENCE {Math.round(confValue!)}/100 ({confLabel.toUpperCase()})
                                 </p>
                             )}
                         </div>
 
                         {/* Title */}
-                        <h3 className="font-bold text-zinc-100 text-[14px] leading-snug tracking-tight">{gap.title}</h3>
+                        <h3 className="font-bold text-zinc-100 text-[14px] leading-snug tracking-tight mb-2">{gap.title}</h3>
                     </div>
                 </div>
 
@@ -478,29 +484,37 @@ export function GapCard({ gap, rank, channelId, isAlreadySaved, analytics }: {
                         </div>
                     )}
 
-                    {/* ── WHY NOW ── */}
-                    {gap.quantitativeReasons && gap.quantitativeReasons.length > 0 ? (
-                        <div className="pt-2 pb-1 space-y-2 mt-4">
-                            <div className="flex items-center gap-1.5 mb-2">
-                                <AlertCircle className="w-3.5 h-3.5 text-sky-400 shrink-0" />
-                                <p className="text-[10px] font-mono font-bold text-sky-400 uppercase tracking-widest">Measured signals</p>
-                            </div>
-                            <ul className="space-y-1.5 pl-5 list-disc text-sky-400/50">
-                                {gap.quantitativeReasons.map((qr, idx) => (
-                                    <li key={idx}>
-                                        <p className="text-[12px] text-zinc-300">
-                                            {qr.label}: <span className="font-bold text-zinc-100">{qr.value}</span>
+                    {/* ── WHY NOW & EVIDENCE ── */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
+                        {/* WHY NOW */}
+                        {gap.scoreReasons && gap.scoreReasons.length > 0 && (
+                            <div className="p-3 rounded-xl bg-[#111113] border border-[#1e1e22]">
+                                <p className="text-[10px] font-mono text-zinc-500 uppercase tracking-widest mb-2">Why Now</p>
+                                <div className="space-y-1.5">
+                                    {gap.scoreReasons.map((reason, i) => (
+                                        <p key={i} className={`text-[10px] leading-snug font-mono ${reason.startsWith('+') ? 'text-emerald-400/90' : reason.startsWith('-') ? 'text-rose-400/90' : 'text-zinc-400'}`}>
+                                            {reason}
                                         </p>
-                                    </li>
-                                ))}
-                            </ul>
-                        </div>
-                    ) : gap.whyNow ? (
-                        <div className="flex items-start gap-2 pt-1 pb-1">
-                            <AlertCircle className="w-3.5 h-3.5 text-sky-400 shrink-0 mt-0.5" />
-                            <p className="text-[12px] text-zinc-300 leading-relaxed"><span className="font-bold text-sky-400">Why now:</span> {gap.whyNow}</p>
-                        </div>
-                    ) : null}
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                        
+                        {/* BREAKOUT EVIDENCE */}
+                        {gap.evidenceOutliers && gap.evidenceOutliers.length > 0 && (
+                            <div className="p-3 rounded-xl bg-[#111113] border border-[#1e1e22]">
+                                <p className="text-[10px] font-mono text-zinc-500 uppercase tracking-widest mb-2">Breakout Evidence</p>
+                                <div className="space-y-1.5">
+                                    {gap.evidenceOutliers.slice(0, 3).map((outlier, i) => (
+                                        <div key={i} className="flex justify-between items-center text-[10px] font-mono">
+                                            <span className="text-zinc-400 truncate max-w-[120px]">{outlier.channelName}</span>
+                                            <span className="text-emerald-400">{outlier.normalMedian.toLocaleString()} &rarr; {outlier.candidateViews.toLocaleString()}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
 
                     {/* ── Top 3 Signals Summary ── */}
                     <div className="space-y-2 pt-1 pb-2">
@@ -554,6 +568,28 @@ export function GapCard({ gap, rank, channelId, isAlreadySaved, analytics }: {
                         Write Script
                     </button>
 
+                    {/* Analyze Thumbnails */}
+                    <button
+                        onClick={() => setThumbOpen(true)}
+                        title="Analyze competitor thumbnails for this topic"
+                        className="w-9 h-9 rounded-xl flex items-center justify-center border border-[#1e1e22] bg-[#111113] text-zinc-500 hover:text-violet-400 hover:border-violet-500/30 hover:bg-violet-500/5 transition-all shrink-0"
+                    >
+                        <Image className="w-3.5 h-3.5" />
+                    </button>
+
+                    {/* Share */}
+                    {scanId && (
+                        <a
+                            href={`/dashboard/scans/${scanId}/share`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title="Share this scan result"
+                            className="w-9 h-9 rounded-xl flex items-center justify-center border border-[#1e1e22] bg-[#111113] text-zinc-500 hover:text-sky-400 hover:border-sky-500/30 hover:bg-sky-500/5 transition-all shrink-0"
+                        >
+                            <Share2 className="w-3.5 h-3.5" />
+                        </a>
+                    )}
+
                     {/* Create Brief (save + go to vault) */}
                     {channelId && (
                         <CreateBriefButton gap={gap} channelId={channelId} />
@@ -577,6 +613,15 @@ export function GapCard({ gap, rank, channelId, isAlreadySaved, analytics }: {
                         duration: "10-15 min",
                     }}
                     onClose={() => setScriptOpen(false)}
+                />
+            )}
+
+            {/* Thumbnail Modal */}
+            {thumbOpen && (
+                <ThumbnailModal
+                    keyword={gap.title}
+                    channelId={channelId}
+                    onClose={() => setThumbOpen(false)}
                 />
             )}
         </>
@@ -766,5 +811,292 @@ export function SaveIdeaButton({ gap, channelId, isAlreadySaved }: {
                     : <Bookmark className="w-3.5 h-3.5" />
             }
         </button>
+    );
+}
+
+// ─── Thumbnail Modal ──────────────────────────────────────────────────────────
+
+interface ThumbnailData {
+    videoId: string;
+    title: string;
+    channel: string;
+    thumbnailUrl: string;
+    views: number;
+}
+
+interface ThumbnailAnalysis {
+    patterns?: string[];
+    gaps?: string[];
+    myRecommendation?: string;
+    textTips?: string[];
+    colorPalette?: string[];
+}
+
+export function ThumbnailModal({ keyword, channelId, onClose }: {
+    keyword: string;
+    channelId?: string;
+    onClose: () => void;
+}) {
+    const [loading, setLoading] = React.useState(false);
+    const [thumbnails, setThumbnails] = React.useState<ThumbnailData[]>([]);
+    const [analysis, setAnalysis] = React.useState<ThumbnailAnalysis | null>(null);
+    const [error, setError] = React.useState<string | null>(null);
+    const [fetched, setFetched] = React.useState(false);
+
+    const run = async () => {
+        if (!channelId) {
+            setError("No channel selected. Please add a channel first.");
+            return;
+        }
+        setLoading(true);
+        setError(null);
+        try {
+            const res = await fetch("/api/thumbnail-analyze", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ keyword, channelId }),
+            });
+            const data = await res.json() as {
+                success?: boolean;
+                error?: string;
+                thumbnails?: ThumbnailData[];
+                analysis?: ThumbnailAnalysis;
+            };
+            if (!res.ok || !data.success) {
+                setError(data.error ?? "Analysis failed.");
+                return;
+            }
+            setThumbnails(data.thumbnails ?? []);
+            setAnalysis(data.analysis ?? null);
+            setFetched(true);
+        } catch (e) {
+            setError("Network error. Please try again.");
+            console.error(e);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    return (
+        <div
+            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            style={{ background: "rgba(0,0,0,0.8)", backdropFilter: "blur(8px)" }}
+        >
+            <div className="relative w-full max-w-3xl max-h-[90vh] overflow-y-auto bg-[#0f0f11] border border-[#1e1e22] rounded-2xl shadow-2xl">
+
+                {/* Header */}
+                <div className="sticky top-0 z-10 flex items-center justify-between px-6 py-4 border-b border-[#1e1e22] bg-[#0f0f11]">
+                    <div>
+                        <p className="text-[10px] font-mono text-violet-400 uppercase tracking-widest mb-0.5">Thumbnail Intelligence</p>
+                        <h2 className="text-sm font-bold text-zinc-100 truncate max-w-md">"{keyword}"</h2>
+                    </div>
+                    <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-xl text-zinc-500 hover:text-zinc-200 hover:bg-[#1e1e22] transition-colors">
+                        <X className="w-4 h-4" />
+                    </button>
+                </div>
+
+                <div className="p-6 space-y-6">
+
+                    {!fetched && !loading && (
+                        <div className="text-center py-8">
+                            <div className="w-14 h-14 rounded-full bg-violet-500/10 border border-violet-500/20 flex items-center justify-center mx-auto mb-4">
+                                <Image className="w-6 h-6 text-violet-400" />
+                            </div>
+                            <p className="text-zinc-400 text-sm mb-2">Analyze top competitor thumbnails for this gap.</p>
+                            <p className="text-zinc-600 text-xs mb-6">Costs 1 credit. Fetches top 6 YouTube results + AI pattern analysis.</p>
+                            <button
+                                onClick={run}
+                                className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-violet-600/15 border border-violet-500/30 text-violet-400 hover:bg-violet-600/25 font-semibold text-sm transition-all"
+                            >
+                                <Image className="w-4 h-4" />
+                                Analyze Thumbnails (1 credit)
+                            </button>
+                        </div>
+                    )}
+
+                    {loading && (
+                        <div className="text-center py-12">
+                            <Loader2 className="w-8 h-8 text-violet-400 animate-spin mx-auto mb-3" />
+                            <p className="text-zinc-400 text-sm">Fetching competitor thumbnails + running AI analysis…</p>
+                        </div>
+                    )}
+
+                    {error && (
+                        <div className="rounded-xl border border-red-500/20 bg-red-500/5 p-4">
+                            <p className="text-sm text-red-400">{error}</p>
+                        </div>
+                    )}
+
+                    {fetched && thumbnails.length > 0 && (
+                        <>
+                            {/* Thumbnail grid */}
+                            <div>
+                                <p className="text-[10px] font-mono text-zinc-500 uppercase tracking-widest mb-3">Competitor Thumbnails</p>
+                                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                                    {thumbnails.map(t => (
+                                        <a
+                                            key={t.videoId}
+                                            href={`https://youtube.com/watch?v=${t.videoId}`}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="group relative rounded-xl overflow-hidden border border-[#1e1e22] hover:border-[#2a2a30] transition-all"
+                                        >
+                                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                                            <img src={t.thumbnailUrl} alt={t.title} className="w-full aspect-video object-cover" />
+                                            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                                            <div className="absolute bottom-0 left-0 right-0 p-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <p className="text-[10px] text-white font-semibold line-clamp-2">{t.title}</p>
+                                                <p className="text-[9px] text-zinc-400 mt-0.5">{t.views.toLocaleString()} views</p>
+                                            </div>
+                                        </a>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* AI Analysis */}
+                            {analysis && (
+                                <div className="space-y-4">
+                                    {analysis.patterns && analysis.patterns.length > 0 && (
+                                        <div className="rounded-xl border border-[#1e1e22] bg-[#111113] p-4">
+                                            <p className="text-[10px] font-mono text-zinc-500 uppercase tracking-widest mb-2">✓ What's Working (Patterns)</p>
+                                            <ul className="space-y-1.5">
+                                                {analysis.patterns.map((p, i) => (
+                                                    <li key={i} className="text-xs text-zinc-300 flex items-start gap-2">
+                                                        <span className="text-emerald-500 shrink-0 mt-0.5">→</span>{p}
+                                                    </li>
+                                                ))}
+                                            </ul>
+                                        </div>
+                                    )}
+
+                                    {analysis.gaps && analysis.gaps.length > 0 && (
+                                        <div className="rounded-xl border border-amber-500/20 bg-amber-500/[0.03] p-4">
+                                            <p className="text-[10px] font-mono text-amber-400 uppercase tracking-widest mb-2">⚡ Thumbnail Gaps (Untapped)</p>
+                                            <ul className="space-y-1.5">
+                                                {analysis.gaps.map((g, i) => (
+                                                    <li key={i} className="text-xs text-zinc-300 flex items-start gap-2">
+                                                        <span className="text-amber-400 shrink-0 mt-0.5">→</span>{g}
+                                                    </li>
+                                                ))}
+                                            </ul>
+                                        </div>
+                                    )}
+
+                                    {analysis.myRecommendation && (
+                                        <div className="rounded-xl border border-violet-500/25 bg-violet-500/[0.04] p-4">
+                                            <p className="text-[10px] font-mono text-violet-400 uppercase tracking-widest mb-2">🎯 Your Thumbnail Strategy</p>
+                                            <p className="text-sm text-zinc-200 leading-relaxed">{analysis.myRecommendation}</p>
+                                        </div>
+                                    )}
+
+                                    <div className="grid sm:grid-cols-2 gap-3">
+                                        {analysis.textTips && analysis.textTips.length > 0 && (
+                                            <div className="rounded-xl border border-[#1e1e22] bg-[#111113] p-4">
+                                                <p className="text-[10px] font-mono text-zinc-500 uppercase tracking-widest mb-2">Text Overlay Tips</p>
+                                                <ul className="space-y-1">
+                                                    {analysis.textTips.map((t, i) => (
+                                                        <li key={i} className="text-xs text-zinc-400">{t}</li>
+                                                    ))}
+                                                </ul>
+                                            </div>
+                                        )}
+                                        {analysis.colorPalette && analysis.colorPalette.length > 0 && (
+                                            <div className="rounded-xl border border-[#1e1e22] bg-[#111113] p-4">
+                                                <p className="text-[10px] font-mono text-zinc-500 uppercase tracking-widest mb-2">Suggested Colors</p>
+                                                <div className="flex flex-wrap gap-2 mt-1">
+                                                    {analysis.colorPalette.map((c, i) => (
+                                                        <span key={i} className="text-[10px] font-mono bg-[#0c0c0e] border border-[#232328] text-zinc-300 rounded-lg px-2 py-0.5">{c}</span>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+                        </>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function EvidenceDrawer({ gap, isOpen, onClose }: { gap: GapItem; isOpen: boolean; onClose: () => void }) {
+    if (!isOpen) return null;
+
+    const liftList = gap.evidenceOutliers?.map(o => o.lift) || [];
+    const meanLift = liftList.length > 0 ? (liftList.reduce((a, b) => a + b, 0) / liftList.length) : 0;
+    const sortedLifts = [...liftList].sort((a, b) => a - b);
+    const medianLift = sortedLifts.length > 0 ? 
+        (sortedLifts.length % 2 !== 0 ? sortedLifts[Math.floor(sortedLifts.length / 2)] : 
+        (sortedLifts[sortedLifts.length / 2 - 1] + sortedLifts[sortedLifts.length / 2]) / 2) : 0;
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+            <div className="relative w-full max-w-lg bg-[#0f0f11] border border-[#2a2a30] rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
+                
+                {/* Header */}
+                <div className="flex items-center justify-between px-6 py-4 border-b border-[#1e1e22] bg-[#141417]">
+                    <div className="flex items-center gap-2">
+                        <LineChart className="w-4 h-4 text-sky-400" />
+                        <h3 className="text-sm font-bold text-zinc-100">Breakout Evidence</h3>
+                    </div>
+                    <button onClick={onClose} className="p-1.5 rounded-lg text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 transition-colors">
+                        <X className="w-4 h-4" />
+                    </button>
+                </div>
+
+                {/* Body */}
+                <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                    <div>
+                        <h4 className="text-[10px] font-mono text-zinc-500 uppercase tracking-widest mb-3">Detected Outliers</h4>
+                        <div className="space-y-3">
+                            {gap.evidenceOutliers?.map((outlier, i) => (
+                                <div key={i} className="p-4 rounded-xl bg-[#141417] border border-[#1e1e22]">
+                                    <p className="text-xs font-bold text-zinc-200 mb-2 truncate">{outlier.channelName}</p>
+                                    <div className="grid grid-cols-2 gap-y-2 gap-x-4">
+                                        <div>
+                                            <p className="text-[9px] font-mono text-zinc-500 uppercase">Normal Median</p>
+                                            <p className="text-xs text-zinc-300 tabular-nums">{outlier.normalMedian.toLocaleString()}</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-[9px] font-mono text-zinc-500 uppercase">Candidate Views</p>
+                                            <p className="text-xs font-bold text-emerald-400 tabular-nums">{outlier.candidateViews.toLocaleString()}</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-[9px] font-mono text-zinc-500 uppercase">Channel Lift</p>
+                                            <p className="text-xs font-bold text-emerald-400 tabular-nums">{outlier.lift.toFixed(1)}×</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-[9px] font-mono text-zinc-500 uppercase">Video Age</p>
+                                            <p className="text-xs text-zinc-400 tabular-nums">{Math.round(outlier.ageHours)}h</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div className="pt-4 border-t border-[#1e1e22]">
+                        <div className="grid grid-cols-3 gap-4">
+                            <div>
+                                <p className="text-[9px] font-mono text-zinc-500 uppercase">Mean Lift</p>
+                                <p className="text-sm font-bold text-zinc-200">{meanLift.toFixed(1)}×</p>
+                            </div>
+                            <div>
+                                <p className="text-[9px] font-mono text-zinc-500 uppercase">Median Lift</p>
+                                <p className="text-sm font-bold text-emerald-400">{medianLift.toFixed(1)}×</p>
+                            </div>
+                            <div>
+                                <p className="text-[9px] font-mono text-zinc-500 uppercase">Independent Creators</p>
+                                <p className="text-sm font-bold text-zinc-200">{liftList.length}</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
     );
 }

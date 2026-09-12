@@ -9,7 +9,7 @@ import { logger } from "@/lib/logger";
 import { getValidYouTubeToken } from "@/lib/youtube-tokens";
 import {
     computeVelocityScore,
-    computeAbandonmentScore,
+    computeFreshnessGapScore,
     computeTrendMomentum,
     computeSaturationScore,
     type VideoData,
@@ -207,7 +207,7 @@ export async function POST(req: NextRequest) {
         }));
 
         const velocitySignal = computeVelocityScore(scoringVideos);
-        const abandonmentSignal = computeAbandonmentScore(scoringVideos);
+        const abandonmentSignal = computeFreshnessGapScore(scoringVideos);
         const trendSignal = computeTrendMomentum(scoringVideos);
 
         // Tier 4: Broader market/competitor intelligence (YouTube search)

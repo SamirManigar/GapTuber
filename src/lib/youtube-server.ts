@@ -143,16 +143,17 @@ export async function getSearchResults(
     apiKey: string,
     maxResults = 15,
     publishedAfter?: Date,
+    order: "relevance" | "date" = "relevance"
 ): Promise<SearchResult[]> {
     const freshnessKey = publishedAfter?.toISOString().slice(0, 10) ?? "all-time";
-    const cacheKey = `yt:v3:search:${keyword}:${maxResults}:${freshnessKey}`;
+    const cacheKey = `yt:v3:search:${keyword}:${maxResults}:${freshnessKey}:${order}`;
     return cacheData(cacheKey, async () => {
         try {
             const searchParams = new URLSearchParams({
                 part: "snippet",
                 q: keyword,
                 type: "video",
-                order: "relevance",
+                order: order,
                 maxResults: String(maxResults),
                 key: apiKey,
             });
@@ -166,7 +167,7 @@ export async function getSearchResults(
 
             if (videoIds.length === 0) return [];
 
-            const statsUrl = `${YT_BASE}/videos?part=snippet,statistics&id=${videoIds.join(",")}&key=${apiKey}`;
+            const statsUrl = `${YT_BASE}/videos?part=snippet,statistics,contentDetails&id=${videoIds.join(",")}&key=${apiKey}`;
             const statsRes = await fetch(statsUrl);
             if (!statsRes.ok) throw new Error(`YouTube video statistics failed (${statsRes.status})`);
 
@@ -175,6 +176,7 @@ export async function getSearchResults(
             // Tier 1A: fetch subscriber counts for the channels in one batch call
             const channelIds = [...new Set((statsData.items ?? []).map(item => item.snippet.channelId))].join(",");
             const subMap: Record<string, number> = {};
+            let hiddenSubMap: Record<string, boolean> = {};
             if (channelIds) {
                 try {
                     const chanRes = await fetch(`${YT_BASE}/channels?part=statistics&id=${channelIds}&key=${apiKey}`);
@@ -182,6 +184,9 @@ export async function getSearchResults(
                         const chanData = await chanRes.json() as { items?: ChannelItem[] };
                         for (const c of (chanData.items ?? [])) {
                             subMap[c.id] = parseInt(c.statistics?.subscriberCount || "0");
+                            if ((c.statistics as any)?.hiddenSubscriberCount) {
+                                hiddenSubMap[c.id] = true;
+                            }
                         }
                     }
                 } catch { /* non-critical */ }
@@ -190,10 +195,13 @@ export async function getSearchResults(
             return (statsData.items ?? []).map(item => ({
                 title: item.snippet.title,
                 channel: item.snippet.channelTitle,
+                channelId: item.snippet.channelId,
                 views: parseInt(item.statistics.viewCount || "0"),
                 likes: parseInt(item.statistics.likeCount || "0"),
                 uploadDate: item.snippet.publishedAt,
                 subscriberCount: subMap[item.snippet.channelId] ?? 0,
+                hiddenSubscriberCount: hiddenSubMap[item.snippet.channelId] ?? false,
+                duration: item.contentDetails?.duration,
             }));
         } catch (e) {
             console.error("Error fetching search results:", e);
@@ -272,4 +280,33 @@ export async function getTopCompetitorsForTopic(topic: string, apiKey: string, m
             return [];
         }
     }, 86400); // Cache for 24 hours
+}
+
+/**
+ * Fetch detailed statistics for specific video IDs.
+ */
+export async function getVideoStats(videoIds: string[], apiKey: string) {
+    if (videoIds.length === 0) return [];
+    
+    // Split into chunks of 50 (YouTube API limit)
+    const chunks = [];
+    for (let i = 0; i < videoIds.length; i += 50) {
+        chunks.push(videoIds.slice(i, i + 50));
+    }
+    
+    const allVideos = [];
+    for (const chunk of chunks) {
+        try {
+            const url = `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics,contentDetails&id=${chunk.join(",")}&key=${apiKey}`;
+            const res = await fetch(url);
+            if (!res.ok) continue;
+            
+            const data = await res.json() as any;
+            allVideos.push(...(data.items ?? []));
+        } catch (e) {
+            console.error("Error fetching video stats chunk:", e);
+        }
+    }
+    
+    return allVideos;
 }
