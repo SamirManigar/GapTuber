@@ -8,8 +8,7 @@ import { getRandomYouTubeApiKey, getVideoStats } from "@/lib/youtube-server";
 
 // @ts-ignore
 export const trackBreakoutCandidate = inngest.createFunction(
-    { id: "track-breakout-candidate" },
-    { event: "engine/outlier.detected" },
+    { id: "track-breakout-candidate", triggers: [{ event: "engine/outlier.detected" }] },
     async ({ event, step }: any) => {
         const { videoId, trackingId, detectedAt, searchRunId } = event.data;
         const detectedTime = new Date(detectedAt);
