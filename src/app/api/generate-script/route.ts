@@ -157,7 +157,7 @@ export async function POST(req: Request) {
         const groq = createGroq({ apiKey: activeKey });
 
         const result = streamText({
-            model: groq('llama3-70b-8192'),
+            model: groq('llama-3.1-70b-versatile'),
             system: systemPrompt,
             prompt: prompt,
             onFinish: async ({ text }) => {

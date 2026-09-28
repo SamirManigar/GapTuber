@@ -152,7 +152,7 @@ async function handleSync(req: NextRequest) {
 
                     const groq = createGroq({ apiKey: currentGroqKey });
                     const { text } = await generateText({
-                        model: groq("llama3-70b-8192"),
+                        model: groq("llama-3.1-70b-versatile"),
                         messages: [
                             { role: "system", content: "Output valid JSON only. No markdown formatting." },
                             { role: "user", content: prompt }

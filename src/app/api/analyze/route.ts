@@ -226,7 +226,7 @@ export async function POST(req: NextRequest) {
             try {
                 const groq = createGroq({ apiKey: activeKey });
                 const result = await generateText({
-                    model: groq("llama3-70b-8192"),
+                    model: groq("llama-3.1-70b-versatile"),
                     messages: [
                         { role: "system", content: "You are an expert YouTube strategist. Explain this like I am a tired YouTuber, not a marketing executive. You are strictly forbidden from using words like: leverage, unlock, dive deep, landscape, synergy, dynamic, or comprehensive. Respond ONLY with valid JSON matching the schema exactly. No markdown, no explanation." },
                         { role: "user", content: prompt }
