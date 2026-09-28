@@ -343,7 +343,7 @@ export async function POST(req: NextRequest) {
             modelLabel = "Llama 3.3 70B (Groq)";
 
             result = streamText({
-                model: groq("llama-3.1-70b-versatile"),
+                model: groq("openai/gpt-oss-120b"),
                 system: systemPrompt,
                 messages: [
                     ...conversationHistory,

@@ -210,7 +210,7 @@ For commentInsights:
             try {
                 const groq = createGroq({ apiKey: activeKey });
                 const result = await generateText({
-                    model: groq("llama-3.1-70b-versatile"),
+                    model: groq("openai/gpt-oss-120b"),
                     messages: [
                         { role: "system", content: "You must output ONLY valid JSON that strictly matches the required schema. No markdown fences, no explanatory text. For evidenceComments, return ONLY the commentId of the exact comment used as evidence." },
                         { role: "user", content: prompt + `\n\nREQUIRED JSON SCHEMA:\n${JSON.stringify({ success: true, keyword: "string", gaps: [{ title: "string", gapScore: "number", confidence: "number", reasoning: "string", whyNow: "string", evidenceComments: [{ commentId: "string" }], hook: "string", format: "string", monetizationAngle: "string", targetAudience: "string", competitorWeakness: "string", contentOutline: ["string"], seoTips: ["string"] }], overallOpportunity: "string", commentInsights: { totalAnalyzed: "number", frustrationRate: "number", topPainPoints: ["string"], topQuestions: ["string"] } }, null, 2)}` }
