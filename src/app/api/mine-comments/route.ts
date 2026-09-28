@@ -164,7 +164,7 @@ Return ONLY a JSON object matching this schema:
             try {
                 const groqProvider = createGroq({ apiKey: activeKey });
                 const result = await generateText({
-                    model: groqProvider("llama-3.3-70b-versatile"),
+                    model: groqProvider("llama3-70b-8192"),
                     messages: [
                         { role: "system", content: "You are a JSON API. Respond only with valid JSON matching the requested schema. No markdown, no explanations." },
                         { role: "user", content: prompt }

@@ -59,7 +59,7 @@ Provide a rich, actionable analysis as JSON with EXACTLY these fields:
 Return ONLY the raw JSON object. No markdown. No explanation.`;
 
         const groqProvider = createGroq({ apiKey: groqKeys[Math.floor(Math.random() * groqKeys.length)] });
-        const groqModel = groqProvider("llama-3.3-70b-versatile");
+        const groqModel = groqProvider("llama3-70b-8192");
 
         const { text } = await generateText({ model: groqModel, prompt });
         

@@ -460,7 +460,7 @@ Output exactly 3 blueprints matching this segmentation.`;
             try {
                 const groq = createGroq({ apiKey: activeKey });
                 const result = await generateText({
-                    model: groq("llama-3.3-70b-versatile"),
+                    model: groq("llama3-70b-8192"),
                     messages: [
                         { role: "system", content: "You must output ONLY valid JSON that strictly matches the required schema. No markdown fences, no explanatory text." },
                         { role: "user", content: prompt + `\n\nREQUIRED JSON SCHEMA:\n${JSON.stringify({ videoIdeas: [{ title: "string", hook: "string", format: "DISCOVERY | Tutorial", whyItWorks: "string", estimatedViewPotential: "high|medium|low", targetAudience: "string", signalSource: "string" }] }, null, 2)}` }

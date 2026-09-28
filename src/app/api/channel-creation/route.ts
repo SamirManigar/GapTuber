@@ -283,7 +283,7 @@ RESPOND WITH ONLY THIS JSON:
             try {
                 const groq = createGroq({ apiKey: activeKey });
                 const result = await generateText({
-                    model: groq("llama-3.3-70b-versatile"),
+                    model: groq("llama3-70b-8192"),
                     messages: [
                         {
                             role: "system",
