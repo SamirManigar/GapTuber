@@ -6,6 +6,7 @@ import { generateText } from "ai";
 import { createGroq } from "@ai-sdk/groq";
 import { logger } from "@/lib/logger";
 import * as Sentry from "@sentry/nextjs";
+import { parseIsoDurationToSeconds } from "@/lib/youtube-server";
 
 export const maxDuration = 300; // Allow up to 5 minutes for background sync of multiple monitors
 
@@ -105,17 +106,24 @@ async function handleSync(req: NextRequest) {
                 const videoIds = videosData.items.map((v: any) => v.contentDetails?.videoId).filter(Boolean).join(",");
                 if (!videoIds) continue;
 
-                const statsUrl = `https://www.googleapis.com/youtube/v3/videos?part=statistics&id=${videoIds}&key=${currentYtKey}`;
+                const statsUrl = `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics,contentDetails&id=${videoIds}&key=${currentYtKey}`;
                 const statsRes = await fetch(statsUrl);
                 if (!statsRes.ok) continue;
 
                 const statsData = await statsRes.json();
-                const videosWithStats = videosData.items.map((v: any, index: number) => ({
-                    id: v.contentDetails?.videoId,
+                
+                // Exclude Shorts (< 65 seconds) and Live Streams
+                const filteredVideos = statsData.items?.filter((item: any) => {
+                    const durationSecs = parseIsoDurationToSeconds(item.contentDetails?.duration);
+                    return durationSecs > 65 && item.snippet?.liveBroadcastContent === "none";
+                }) || [];
+
+                const videosWithStats = filteredVideos.map((v: any) => ({
+                    id: v.id,
                     title: v.snippet?.title,
                     thumbnail: v.snippet?.thumbnails?.high?.url || v.snippet?.thumbnails?.default?.url,
                     publishedAt: v.snippet?.publishedAt,
-                    views: statsData.items?.[index]?.statistics?.viewCount ?? "0",
+                    views: v.statistics?.viewCount ?? "0",
                 }));
 
                 // AI Analysis for the top 3 most relevant/viewed recent videos

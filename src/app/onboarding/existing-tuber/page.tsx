@@ -12,12 +12,12 @@ export default function ExistingTuberPage() {
 
     const handleConnect = () => {
         setIsConnecting(true);
-        // Set cookie to instruct auth.ts to save tokens for onboarding
+        // Set cookie to instruct api/youtube/callback to save tokens for onboarding
         document.cookie = "onboarding_youtube=true; path=/; max-age=3600";
         // Clear any existing connection intent just in case
         document.cookie = "connect_channel_id=; path=/; max-age=0";
         
-        signIn("google", { callbackUrl: "/onboarding/existing-tuber/processing" });
+        window.location.href = "/api/youtube/connect?callbackUrl=/onboarding/existing-tuber/processing";
     };
 
     return (

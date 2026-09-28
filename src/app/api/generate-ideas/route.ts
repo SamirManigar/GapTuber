@@ -40,7 +40,7 @@ const VideoIdeaSchema = z.object({
 });
 
 const ResponseSchema = z.object({
-    videoIdeas: z.array(VideoIdeaSchema).length(5),
+    videoIdeas: z.array(VideoIdeaSchema).length(3),
 });
 
 // ─── Request Schema ───────────────────────────────────────────────────────────
@@ -222,15 +222,24 @@ export async function POST(req: NextRequest) {
         const targetTopic = channel.topic || channel.category;
         if (ytApiKey && targetTopic) {
             try {
-                const marketWindowStart = new Date();
-                marketWindowStart.setUTCDate(marketWindowStart.getUTCDate() - 180);
+                let marketWindowStart = new Date();
+                marketWindowStart.setUTCDate(marketWindowStart.getUTCDate() - 7);
                 marketSearchResults = await getSearchResults(targetTopic, ytApiKey, 20, marketWindowStart);
+                let daysLookback = 7;
+
+                if (marketSearchResults.length < 5) {
+                    marketWindowStart = new Date();
+                    marketWindowStart.setUTCDate(marketWindowStart.getUTCDate() - 30);
+                    marketSearchResults = await getSearchResults(targetTopic, ytApiKey, 20, marketWindowStart);
+                    daysLookback = 30;
+                }
+
                 if (marketSearchResults.length > 0) {
                     const satScore = computeSaturationScore(marketSearchResults);
                     const topCompTitles = marketSearchResults.slice(0, 10).map(r =>
                         `  - "${r.title}" by ${r.channel} — ${r.views.toLocaleString()} views — published ${r.uploadDate.slice(0, 10)}`
                     ).join("\n");
-                    marketContextBlock = `\nRECENT YOUTUBE MARKET EVIDENCE ("${targetTopic}", published in the last 180 days):\n- Search sample: ${marketSearchResults.length} videos fetched live from YouTube Data API\n- Market Saturation Score: ${satScore.score.toFixed(1)}/10 (${satScore.competitionLevel} competition)\n- Recent relevant videos:\n${topCompTitles}\n`;
+                    marketContextBlock = `\nRECENT YOUTUBE MARKET EVIDENCE ("${targetTopic}", published in the last ${daysLookback} days):\n- Search sample: ${marketSearchResults.length} LONG-FORM videos fetched live from YouTube Data API\n- Market Saturation Score: ${satScore.score.toFixed(1)}/10 (${satScore.competitionLevel} competition)\n- Recent exploding competitor videos:\n${topCompTitles}\n`;
                 }
             } catch (error) {
                 logger.warn("[GenerateIdeas] Live market lookup failed", error);
@@ -383,13 +392,16 @@ export async function POST(req: NextRequest) {
 CURRENT UTC DATE: ${generatedAt.toISOString()}
 CURRENT YEAR: ${currentYear}
 
-TASK: Analyze this creator's performance history alongside competitor intelligence, upload timing, market data, and audience pain points. Generate exactly 5 ultra-high-quality, viral video blueprints designed for explosive CTR and maximum retention.
+TASK: Analyze this creator's performance history alongside competitor intelligence, upload timing, market data, and audience pain points. Generate exactly 3 ultra-high-quality, viral video blueprints designed for explosive CTR and maximum retention.
 
 VIRAL STRATEGY RULES:
 1. HIGH-IMPACT TITLES: Use psychological triggers (Curiosity Gaps, FOMO, Contrarian Angles, Challenging Status Quo). Titles must be irresistibly clickable.
-2. CURRENT & TRENDING: Use only the dated evidence supplied below. Do not infer that a product, model version, price, free tier, feature, watermark policy, or trend is current unless that exact fact appears in the evidence.
-3. OUTLIER HOOK FORMULA: The first 10 seconds hook MUST feature a pattern interrupt. Deliver the title promise instantly.
-4. SURGICAL VALUE: Address verified audience pain points from the Comment Miner data.
+2. LONG-FORM ONLY: Focus entirely on LONG-FORM content strategy. Ignore short-form patterns.
+3. PURE REAL-TIME DATA ONLY: Do NOT rely on your own AI memory, hallucinations, or internal assumptions. Every single idea, title, and topic MUST be directly rooted in the real-time YouTube API data supplied below.
+4. MARKET GAP PRIORITIZATION: Do not rely too heavily on the user's uploaded video data. Prioritize finding gaps based on EXPLODING competitor videos (low content, high success) from the recent data block. Ensure the core idea strategy is strong, accurate, and highly reliable to the current market/SEO landscape. Find a gap and provide a fresh angle.
+5. WATCHTOWER VS LIVE MARKET: Do not fully rely on Watchtower tracked competitors. You must verify and blend these signals with the live real-time YouTube market search data to ensure the ideas are actively viable across the broader niche.
+6. OUTLIER HOOK FORMULA: The first 10 seconds hook MUST feature a pattern interrupt. Deliver the title promise instantly.
+7. SURGICAL VALUE: Address verified audience pain points from the Comment Miner data.
 
 CREATOR CHANNEL DATA:
 - Channel Name: ${String(actualChannelStats?.title || "Unknown")}
@@ -406,17 +418,17 @@ THEIR TOP RECENT VIDEOS (Ground Truth API Data):
 ${topVideos}
 ${marketContextBlock}${audienceMiningBlock}${watchtowerBlock}${timingBlock}${outcomeLearningBlock}
 ── MANDATORY OUTPUT SEGMENTATION ──
-Distribute the 5 ideas exactly as follows. Start the "format" field with the segment prefix:
+Distribute the 3 ideas exactly as follows. Start the "format" field with the segment prefix:
 1. DISCOVERY | <format> — SEO video targeting a specific keyword cluster to attract brand-new viewers.
-2. DISCOVERY | <format> — Second search concept hitting a different keyword cluster or sub-topic.
-3. RETENTION | <format> — Deep-dive or series for existing subscribers. Maximize watch time.
-4. RETENTION | <format> — Community-building content. Reward loyal viewers with exclusive value.
-5. WILDCARD | <format> — Bold, controversial, or trend-hijacking bet. Maximum viral upside.
+2. RETENTION | <format> — Deep-dive or series for existing subscribers. Maximize watch time.
+3. WILDCARD | <format> — Bold, controversial, or trend-hijacking bet. Maximum viral upside.
+
+
 
 ALLOWED EVIDENCE LABELS: ${allowedSignalSources.join(", ")}.
 For each idea, set "signalSource" to exactly one allowed label that is genuinely supported by the supplied block. Never invent Watchtower, comment, market, velocity, or trend evidence. Do not put any year other than ${currentYear} in a title or hook. Prefer no year at all.
 ${deduplicationBlock}
-Output exactly 5 blueprints matching this segmentation.`;
+Output exactly 3 blueprints matching this segmentation.`;
 
         // ── Key-rotation retry loop with generateObject (Issue #12 / #18 fix) ─
         let videoIdeas: z.infer<typeof VideoIdeaSchema>[] | null = null;
@@ -469,9 +481,9 @@ Output exactly 5 blueprints matching this segmentation.`;
             - getOutcomeAdjustment(outcomeLearning, a.signalSource).adjustment
         );
         videoIdeas = [
-            ...rankSegment(videoIdeas.slice(0, 2)),
-            ...rankSegment(videoIdeas.slice(2, 4)),
-            ...videoIdeas.slice(4),
+            ...rankSegment(videoIdeas.slice(0, 1)),
+            ...rankSegment(videoIdeas.slice(1, 2)),
+            ...videoIdeas.slice(2),
         ];
 
         // Save to database. Preserve anything the creator has acted on or linked;

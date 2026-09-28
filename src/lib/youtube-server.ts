@@ -6,7 +6,7 @@ const YT_BASE = "https://www.googleapis.com/youtube/v3";
 type SearchItem = { id: { videoId?: string; channelId?: string } };
 type VideoItem = {
     id: string;
-    snippet: { title: string; publishedAt: string; channelTitle: string; channelId: string; tags?: string[]; description?: string };
+    snippet: { title: string; publishedAt: string; channelTitle: string; channelId: string; tags?: string[]; description?: string; liveBroadcastContent?: string };
     statistics: { viewCount?: string; likeCount?: string; commentCount?: string };
     contentDetails?: { duration?: string };
 };
@@ -25,6 +25,19 @@ type CommentThreadItem = {
         };
     };
 };
+
+/**
+ * Parses YouTube ISO8601 duration into seconds.
+ */
+export function parseIsoDurationToSeconds(duration?: string): number {
+    if (!duration) return 0;
+    const match = duration.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
+    if (!match) return 0;
+    const hours = parseInt(match[1] || "0");
+    const minutes = parseInt(match[2] || "0");
+    const seconds = parseInt(match[3] || "0");
+    return hours * 3600 + minutes * 60 + seconds;
+}
 
 /**
  * Returns a random YouTube API key from the environment pool to distribute quota load.
@@ -115,7 +128,11 @@ export async function getRecentChannelVideos(channelId: string, apiKey: string, 
             if (!statsRes.ok) return [];
 
             const statsData = await statsRes.json() as { items?: VideoItem[] };
-            return (statsData.items ?? []).map(item => ({
+            const longFormItems = (statsData.items ?? []).filter(item => 
+                parseIsoDurationToSeconds(item.contentDetails?.duration) > 65 &&
+                item.snippet.liveBroadcastContent === "none"
+            );
+            return longFormItems.map(item => ({
                 title: item.snippet.title,
                 views: parseInt(item.statistics.viewCount || "0"),
                 likes: parseInt(item.statistics.likeCount || "0"),
@@ -173,8 +190,13 @@ export async function getSearchResults(
 
             const statsData = await statsRes.json() as { items?: VideoItem[] };
 
+            const longFormItems = (statsData.items ?? []).filter(item => 
+                parseIsoDurationToSeconds(item.contentDetails?.duration) > 65 &&
+                item.snippet.liveBroadcastContent === "none"
+            );
+
             // Tier 1A: fetch subscriber counts for the channels in one batch call
-            const channelIds = [...new Set((statsData.items ?? []).map(item => item.snippet.channelId))].join(",");
+            const channelIds = [...new Set(longFormItems.map(item => item.snippet.channelId))].join(",");
             const subMap: Record<string, number> = {};
             const hiddenSubMap: Record<string, boolean> = {};
             if (channelIds) {
@@ -192,7 +214,7 @@ export async function getSearchResults(
                 } catch { /* non-critical */ }
             }
 
-            return (statsData.items ?? []).map(item => ({
+            return longFormItems.map(item => ({
                 title: item.snippet.title,
                 channel: item.snippet.channelTitle,
                 channelId: item.snippet.channelId,
@@ -273,7 +295,11 @@ export async function getTopCompetitorsForTopic(topic: string, apiKey: string, m
                 totalViews: parseInt(item.statistics?.viewCount || "0"),
                 videoCount: parseInt(item.statistics?.videoCount || "0"),
                 description: item.snippet?.description?.slice(0, 100) ?? "",
-            })).sort((a, b) => b.subscribers - a.subscribers).slice(0, maxResults);
+            })).sort((a, b) => {
+                const aVelocity = a.totalViews / Math.max(1, a.videoCount);
+                const bVelocity = b.totalViews / Math.max(1, b.videoCount);
+                return bVelocity - aVelocity;
+            }).slice(0, maxResults);
 
             return competitors;
         } catch (e) {

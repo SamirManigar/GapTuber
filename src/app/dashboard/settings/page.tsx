@@ -137,8 +137,7 @@ function YouTubeSettingsContent() {
                         <button
                             onClick={() => {
                                 if (channelIdFromUrl) {
-                                    document.cookie = `connect_channel_id=${channelIdFromUrl}; path=/; max-age=3600`;
-                                    signIn("google", { callbackUrl: `/dashboard/settings?channelId=${channelIdFromUrl}` });
+                                    window.location.href = `/api/youtube/connect?channelId=${channelIdFromUrl}&callbackUrl=/dashboard/settings?channelId=${channelIdFromUrl}`;
                                 }
                             }}
                             className="mt-4 inline-flex items-center gap-2 text-[10px] font-mono font-bold uppercase tracking-widest text-amber-500 hover:text-amber-300 bg-amber-950/50 hover:bg-amber-900/50 px-3 py-1.5 rounded border border-amber-900/30 transition-colors"
@@ -194,11 +193,7 @@ function YouTubeSettingsContent() {
                                 <button
                                     onClick={() => {
                                         if (channelIdFromUrl) {
-                                            document.cookie = `connect_channel_id=${channelIdFromUrl}; path=/; max-age=3600`;
-                                            if (session?.user?.email) {
-                                                document.cookie = `connect_source_email=${session.user.email}; path=/; max-age=3600`;
-                                            }
-                                            signIn("google", { callbackUrl: `/dashboard/settings?channelId=${channelIdFromUrl}` });
+                                            window.location.href = `/api/youtube/connect?channelId=${channelIdFromUrl}&callbackUrl=/dashboard/settings?channelId=${channelIdFromUrl}`;
                                         }
                                     }}
                                     className="flex items-center gap-2 bg-[#0c0c0e] hover:bg-[#1e1e22] border border-[#2a2a30] text-zinc-200 hover:text-white px-4 py-2 rounded text-[11px] font-mono font-bold uppercase tracking-widest transition-colors"
@@ -235,11 +230,7 @@ function YouTubeSettingsContent() {
                         <button
                             onClick={() => {
                                 if (channelIdFromUrl) {
-                                    document.cookie = `connect_channel_id=${channelIdFromUrl}; path=/; max-age=3600`;
-                                    if (session?.user?.email) {
-                                        document.cookie = `connect_source_email=${session.user.email}; path=/; max-age=3600`;
-                                    }
-                                    signIn("google", { callbackUrl: `/dashboard/settings?channelId=${channelIdFromUrl}` });
+                                    window.location.href = `/api/youtube/connect?channelId=${channelIdFromUrl}&callbackUrl=/dashboard/settings?channelId=${channelIdFromUrl}`;
                                 } else {
                                     toast.error("No project selected to connect!");
                                 }

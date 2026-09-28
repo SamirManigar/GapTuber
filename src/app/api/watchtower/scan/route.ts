@@ -124,7 +124,8 @@ export async function POST(req: NextRequest) {
                 const title = item.snippet?.title || "";
                 const duration = item.contentDetails?.duration || "";
                 const tags: string[] = item.snippet?.tags || [];
-                return !isYouTubeShort(title, duration, tags);
+                const isLive = item.snippet?.liveBroadcastContent !== "none";
+                return !isLive && !isYouTubeShort(title, duration, tags);
             })
             .map((item: any) => {
                 const durationSec = parseDurationSeconds(item.contentDetails?.duration || "");
