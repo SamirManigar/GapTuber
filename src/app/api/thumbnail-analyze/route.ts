@@ -148,7 +148,7 @@ Respond in JSON matching exactly: {"patterns": ["..."], "gaps": ["..."], "myReco
             try {
                 const groq = createGroq({ apiKey: key });
                 const result = await generateText({
-                    model: groq("openai/gpt-oss-120b"),
+                    model: groq("llama-3.3-70b-versatile"),
                     messages: [
                         { role: "system", content: "You are a JSON API. Respond with only valid JSON, no markdown fences." },
                         { role: "user", content: prompt },

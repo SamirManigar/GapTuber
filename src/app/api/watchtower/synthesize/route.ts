@@ -59,7 +59,7 @@ Provide a rich, actionable analysis as JSON with EXACTLY these fields:
 Return ONLY the raw JSON object. No markdown. No explanation.`;
 
         const groqProvider = createGroq({ apiKey: groqKeys[Math.floor(Math.random() * groqKeys.length)] });
-        const groqModel = groqProvider("openai/gpt-oss-120b");
+        const groqModel = groqProvider("llama-3.3-70b-versatile");
 
         const { text } = await generateText({ model: groqModel, prompt });
         
