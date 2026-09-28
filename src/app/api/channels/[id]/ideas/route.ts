@@ -30,7 +30,16 @@ export async function POST(
             });
 
             if (!existingIdea) {
-                return NextResponse.json({ error: "idea not save in vault" }, { status: 400 });
+                // Create it gracefully if it wasn't saved yet
+                const inserts = [{
+                    channelId: id,
+                    title: body.attachToIdeaTitle,
+                    status: "scripting" as const,
+                    source: "ai_studio" as const,
+                    script: body.script || "",
+                }];
+                await db.insert(ideaVault).values(inserts);
+                return NextResponse.json({ success: true, message: "Idea created and script saved to vault" });
             }
 
             await db.update(ideaVault).set({ script: body.script, status: "scripting" }).where(eq(ideaVault.id, existingIdea.id));
