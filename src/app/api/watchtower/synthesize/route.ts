@@ -4,12 +4,12 @@ import { competitorInsights, ideaVault } from "@/db/schema";
 import { eq, desc } from "drizzle-orm";
 import { generateText } from "ai";
 import { createGroq } from "@ai-sdk/groq";
-import { getUserFromSession } from "@/lib/auth-helpers";
+import { auth } from "@/auth";
 
 export async function POST(req: NextRequest) {
     try {
-        const user = await getUserFromSession(req);
-        if (!user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        const session = await auth();
+        if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
         const { insights } = await req.json();
         if (!insights || !Array.isArray(insights) || insights.length === 0) {
