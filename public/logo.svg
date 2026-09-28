@@ -1,0 +1,12 @@
+<svg viewBox="86 60 298 392" xmlns="http://www.w3.org/2000/svg">
+  <!-- Outer White Hexagon 'C' outline -->
+  <path d="M 370 142 L 256 76 L 100 166 L 100 346 L 256 436 L 370 370" 
+        fill="none" stroke="#ffffff" stroke-width="28" stroke-linecap="butt" stroke-linejoin="miter" />
+  
+  <!-- Inner Emerald Hexagon 'C' track -->
+  <path d="M 330 185 L 256 142 L 156 200 L 156 312 L 256 370 L 330 327" 
+        fill="none" stroke="#10b981" stroke-width="28" stroke-linecap="butt" stroke-linejoin="miter" />
+
+  <!-- Solid Emerald Play Button Triangle -->
+  <polygon points="240,256 370,180 370,332" fill="#10b981" />
+</svg>
