@@ -147,6 +147,7 @@ export async function POST(req: NextRequest) {
                                     views: v.statistics?.viewCount,
                                     likes: v.statistics?.likeCount,
                                     publishedAt: v.snippet?.publishedAt,
+                                    tags: v.snippet?.tags || [],
                                 }));
                             }
                             }
@@ -219,7 +220,27 @@ export async function POST(req: NextRequest) {
         } catch {
             logger.warn("[GenerateIdeas] YouTube API key unavailable for live market lookup.");
         }
-        const targetTopic = channel.topic || channel.category;
+        let targetTopic = channel.topic || channel.category;
+        
+        // If no explicit topic, or if it's too generic, dynamically extract a keyword from the most viewed recent video
+        if (!targetTopic || targetTopic.length < 3 || ["education", "science & technology", "people & blogs", "entertainment", "howto & style"].includes(targetTopic.toLowerCase())) {
+            if (actualRecentVideos && actualRecentVideos.length > 0) {
+                // Sort by views to find the best performing video
+                const topVideo = [...actualRecentVideos].sort((a: any, b: any) => (parseInt(b.views) || 0) - (parseInt(a.views) || 0))[0] as any;
+                if (topVideo) {
+                    if (topVideo.tags && topVideo.tags.length > 0) {
+                        targetTopic = topVideo.tags[0]; // YouTube tags are excellent search queries
+                    } else if (topVideo.title) {
+                        // Fallback to title keywords (e.g. first 3 significant words)
+                        const words = topVideo.title.replace(/[^a-zA-Z0-9 ]/g, "").split(" ").filter((w: string) => w.length > 3);
+                        if (words.length > 0) {
+                            targetTopic = words.slice(0, 3).join(" ");
+                        }
+                    }
+                }
+            }
+        }
+
         if (ytApiKey && targetTopic) {
             try {
                 let marketWindowStart = new Date();
