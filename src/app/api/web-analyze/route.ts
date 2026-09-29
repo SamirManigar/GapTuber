@@ -332,7 +332,7 @@ export async function POST(req: NextRequest) {
                         { role: "system", content: "You are a JSON API. Respond with only valid JSON, no markdown." },
                         { role: "user", content: prompt },
                     ],
-                    maxOutputTokens: 1500,
+                    maxOutputTokens: 4000,
                     temperature: 0.2,
                 });
                 rawAiText = result.text;
