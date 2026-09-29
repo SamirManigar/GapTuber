@@ -467,10 +467,10 @@ Output exactly 3 blueprints matching this segmentation.`;
                     ],
                     temperature: 0.7,
                 });
-                let rawText = result.text.trim();
+                let rawText = result.text.trim().replace(/<think>[\s\S]*?<\/think>/g, "").trim();
                 // Basic cleanup if the model still wrapped in markdown despite instructions
-                if (rawText.startsWith("```json")) rawText = rawText.replace(/```json/g, "").replace(/```/g, "").trim();
-                else if (rawText.startsWith("```")) rawText = rawText.replace(/```/g, "").trim();
+                if (rawText.includes("```json")) rawText = rawText.split("```json")[1].split("```")[0].trim();
+                else if (rawText.includes("```")) rawText = rawText.split("```")[1].split("```")[0].trim();
                 
                 const parsedJson: unknown = JSON.parse(rawText);
                 const normalized = Array.isArray(parsedJson) ? { videoIdeas: parsedJson } : parsedJson;

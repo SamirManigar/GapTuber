@@ -350,12 +350,21 @@ export async function POST(req: NextRequest) {
         // 4. Parse Output
         let parsedOutput: unknown;
         try {
-            const start = rawAiText.indexOf("{");
-            const end = rawAiText.lastIndexOf("}");
+            let cleanText = rawAiText.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
+            if (cleanText.includes("```json")) {
+                cleanText = cleanText.split("```json")[1].split("```")[0].trim();
+            } else if (cleanText.includes("```")) {
+                cleanText = cleanText.split("```")[1].split("```")[0].trim();
+            }
+            
+            const start = cleanText.indexOf("{");
+            const end = cleanText.lastIndexOf("}");
             if (start === -1 || end <= start) throw new Error("No JSON object found");
-            parsedOutput = JSON.parse(rawAiText.slice(start, end + 1));
-        } catch {
-            return NextResponse.json({ error: "AI returned invalid JSON." }, { status: 502 });
+            
+            parsedOutput = JSON.parse(cleanText.slice(start, end + 1));
+        } catch (e) {
+            console.error("[Web Analyze AI JSON Parse Error]", e, rawAiText);
+            return NextResponse.json({ error: "AI returned invalid JSON.", raw: rawAiText }, { status: 502 });
         }
 
         const validationResult = GapOutputSchema.safeParse(parsedOutput);
