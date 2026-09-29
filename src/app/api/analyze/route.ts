@@ -226,19 +226,22 @@ export async function POST(req: NextRequest) {
             try {
                 const groq = createGroq({ apiKey: activeKey });
                 const result = await generateText({
-                    model: groq("openai/gpt-oss-120b"),
-                    messages: [
-                        { role: "system", content: "You are an expert YouTube strategist. Explain this like I am a tired YouTuber, not a marketing executive. You are strictly forbidden from using words like: leverage, unlock, dive deep, landscape, synergy, dynamic, or comprehensive. Respond ONLY with valid JSON matching the schema exactly. No markdown, no explanation." },
-                        { role: "user", content: prompt }
-                    ],
+                    model: groq("openai/gpt-oss-20b"),
+                    system: "You are an expert YouTube strategist. Explain this like I am a tired YouTuber, not a marketing executive. You are strictly forbidden from using words like: leverage, unlock, dive deep, landscape, synergy, dynamic, or comprehensive. Respond ONLY with valid JSON matching the schema exactly. No markdown, no explanation.",
+                    prompt,
+                    maxOutputTokens: 2000,
                     temperature: 0.2,
                 });
                 
-                const start = result.text.indexOf("{");
-                const end = result.text.lastIndexOf("}");
+                let cleanText = result.text.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
+                if (cleanText.includes("```json")) cleanText = cleanText.split("```json")[1].split("```")[0].trim();
+                else if (cleanText.includes("```")) cleanText = cleanText.split("```")[1].split("```")[0].trim();
+                
+                const start = cleanText.indexOf("{");
+                const end = cleanText.lastIndexOf("}");
                 if (start === -1 || end <= start) throw new Error("No JSON found");
                 
-                const parsed = JSON.parse(result.text.slice(start, end + 1));
+                const parsed = JSON.parse(cleanText.slice(start, end + 1));
                 scanResult = GapOutputSchema.parse(parsed);
 
                 // ── Post-processing: enforce keyword anchoring in titles ─────────
